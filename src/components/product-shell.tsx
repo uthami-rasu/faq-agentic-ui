@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
+import { useQuery } from "@tanstack/react-query";
 import { z } from "zod";
 import {
   Activity, AlertCircle, ArrowRight, ArrowUpRight, Bell, Bot, Check, CheckCircle2,
@@ -14,14 +15,15 @@ import {
   UserRound, WandSparkles, X, Zap,
 } from "lucide-react";
 import { setSidebarOpen, setTheme, setView, useAppDispatch, useAppSelector, ViewKey } from "@/store";
+import { AgentDto, ApiError, faqApi, OrganizationDto } from "@/lib/api";
 
 type Agent = {
-  id: number; name: string; description: string; docs: number; updated: string;
-  status: "Live" | "Draft"; color: string; initials: string; organizationId: number;
+  id: string; name: string; description: string; docs: number; updated: string;
+  status: "Live" | "Draft"; color: string; initials: string; organizationId: string; version: number;
 };
 
 type Organization = {
-  id: number; name: string; description: string; category: string; initials: string; color: string;
+  id: string; name: string; description: string; category: string; initials: string; color: string; version: number;
 };
 
 type DashboardBackendData = {
@@ -33,13 +35,13 @@ type DashboardBackendData = {
 };
 
 const initialOrganizations: Organization[] = [
-  { id: 1, name: "Acme Inc.", description: "AI-powered tools for modern support teams.", category: "SaaS Company", initials: "A", color: "sand" },
-  { id: 2, name: "TechNova Pvt Ltd", description: "Building better digital learning experiences.", category: "Educational Institute", initials: "T", color: "blue" },
-  { id: 3, name: "Healthcare Plus", description: "Accessible patient information and support.", category: "Healthcare", initials: "H", color: "green" },
+  { id: "1", name: "Acme Inc.", description: "AI-powered tools for modern support teams.", category: "SaaS Company", initials: "A", color: "sand", version: 0 },
+  { id: "2", name: "TechNova Pvt Ltd", description: "Building better digital learning experiences.", category: "Educational Institute", initials: "T", color: "blue", version: 0 },
+  { id: "3", name: "Healthcare Plus", description: "Accessible patient information and support.", category: "Healthcare", initials: "H", color: "green", version: 0 },
 ];
 
-const initialDashboardData: Record<number, DashboardBackendData> = {
-  1: {
+const initialDashboardData: Record<string, DashboardBackendData> = {
+  "1": {
     processing: { completed: 80, processing: 3, failed: 1 },
     orchestratorConfigured: true,
     organizationWidgetConfigured: true,
@@ -54,12 +56,30 @@ const initialDashboardData: Record<number, DashboardBackendData> = {
 };
 
 const initialAgents: Agent[] = [
-  { id: 1, name: "Customer Support", description: "Product questions, troubleshooting, and account help.", docs: 22, updated: "12 min ago", status: "Live", color: "violet", initials: "CS", organizationId: 1 },
-  { id: 2, name: "Employee Handbook", description: "Benefits, workplace policies, and people operations.", docs: 18, updated: "Yesterday", status: "Live", color: "blue", initials: "EH", organizationId: 1 },
-  { id: 3, name: "Developer Docs", description: "API references, SDK guides, and integrations.", docs: 16, updated: "3 days ago", status: "Draft", color: "orange", initials: "DD", organizationId: 1 },
-  { id: 4, name: "Billing & Plans", description: "Subscriptions, invoices, pricing, and plan changes.", docs: 15, updated: "4 days ago", status: "Live", color: "emerald", initials: "BP", organizationId: 1 },
-  { id: 5, name: "Sales FAQ", description: "Product capabilities, plans, and purchasing questions.", docs: 13, updated: "1 week ago", status: "Live", color: "blue", initials: "SF", organizationId: 1 },
+  { id: "1", name: "Customer Support", description: "Product questions, troubleshooting, and account help.", docs: 22, updated: "12 min ago", status: "Live", color: "violet", initials: "CS", organizationId: "1", version: 0 },
+  { id: "2", name: "Employee Handbook", description: "Benefits, workplace policies, and people operations.", docs: 18, updated: "Yesterday", status: "Live", color: "blue", initials: "EH", organizationId: "1", version: 0 },
+  { id: "3", name: "Developer Docs", description: "API references, SDK guides, and integrations.", docs: 16, updated: "3 days ago", status: "Draft", color: "orange", initials: "DD", organizationId: "1", version: 0 },
+  { id: "4", name: "Billing & Plans", description: "Subscriptions, invoices, pricing, and plan changes.", docs: 15, updated: "4 days ago", status: "Live", color: "emerald", initials: "BP", organizationId: "1", version: 0 },
+  { id: "5", name: "Sales FAQ", description: "Product capabilities, plans, and purchasing questions.", docs: 13, updated: "1 week ago", status: "Live", color: "blue", initials: "SF", organizationId: "1", version: 0 },
 ];
+
+const useMockData = process.env.NEXT_PUBLIC_USE_MOCK_DATA === "true";
+
+function initials(name: string) {
+  return name.split(" ").filter(Boolean).map((part) => part[0]).join("").slice(0, 2).toUpperCase() || "QD";
+}
+
+function mapOrganization(item: OrganizationDto): Organization {
+  return { id: item.id, name: item.name, description: item.description, category: item.category, initials: initials(item.name), color: "violet", version: item.version };
+}
+
+function mapAgent(item: AgentDto): Agent {
+  return { id: item.id, organizationId: item.organization_id, name: item.name, description: item.description, docs: 0, updated: new Date(item.updated_at).toLocaleString(), status: item.status === "ACTIVE" && item.enabled ? "Live" : "Draft", color: "emerald", initials: initials(item.name), version: item.version };
+}
+
+function apiErrorMessage(error: unknown) {
+  return error instanceof ApiError ? `${error.message} (${error.code})` : "The backend request failed.";
+}
 
 const documents = [
   { name: "Product_Guide_2026.pdf", agent: "Customer Support", size: "4.8 MB", chunks: 142, date: "Today, 9:42 AM", status: "Ready" },
@@ -85,19 +105,33 @@ type AgentForm = z.infer<typeof agentSchema>;
 export function ProductShell() {
   const dispatch = useAppDispatch();
   const { view, theme, sidebarOpen } = useAppSelector((state) => state.ui);
-  const [agents, setAgents] = useState(initialAgents);
+  const [agents, setAgents] = useState<Agent[]>(useMockData ? initialAgents : []);
   const [search, setSearch] = useState("");
   const [showCreate, setShowCreate] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [organizationTab, setOrganizationTab] = useState<OrganizationTab>("overview");
   const [agentTab, setAgentTab] = useState<AgentTab>("overview");
-  const [selectedAgentId, setSelectedAgentId] = useState(initialAgents[0].id);
-  const [organizations, setOrganizations] = useState(initialOrganizations);
-  const [selectedOrganizationId, setSelectedOrganizationId] = useState(initialOrganizations[0].id);
+  const [selectedAgentId, setSelectedAgentId] = useState(useMockData ? initialAgents[0].id : "");
+  const [organizations, setOrganizations] = useState<Organization[]>(useMockData ? initialOrganizations : []);
+  const [selectedOrganizationId, setSelectedOrganizationId] = useState(useMockData ? initialOrganizations[0].id : "");
   const [showOrganizationMenu, setShowOrganizationMenu] = useState(false);
   const [showOrganizationWizard, setShowOrganizationWizard] = useState(false);
   const [organizationSearch, setOrganizationSearch] = useState("");
-  const [dashboardData, setDashboardData] = useState<Record<number, DashboardBackendData>>(initialDashboardData);
+  const [dashboardData, setDashboardData] = useState<Record<string, DashboardBackendData>>(useMockData ? initialDashboardData : {});
+
+  const organizationsQuery = useQuery({
+    queryKey: ["organizations"],
+    queryFn: () => faqApi.listOrganizations(),
+    enabled: !useMockData,
+    retry: 1,
+  });
+
+  const agentsQuery = useQuery({
+    queryKey: ["faq-agents", selectedOrganizationId],
+    queryFn: () => faqApi.listAgents(selectedOrganizationId),
+    enabled: !useMockData && Boolean(selectedOrganizationId),
+    retry: 1,
+  });
 
   useEffect(() => {
     const saved = localStorage.getItem("querydesk-theme") as "light" | "dark" | null;
@@ -110,6 +144,20 @@ export function ProductShell() {
     localStorage.setItem("querydesk-theme", theme);
   }, [theme]);
 
+  useEffect(() => {
+    if (!organizationsQuery.data) return;
+    const loaded = organizationsQuery.data.map(mapOrganization);
+    setOrganizations(loaded);
+    setSelectedOrganizationId((current) => loaded.some((organization) => organization.id === current) ? current : loaded[0]?.id ?? "");
+  }, [organizationsQuery.data]);
+
+  useEffect(() => {
+    if (!agentsQuery.data || !selectedOrganizationId) return;
+    const loaded = agentsQuery.data.map(mapAgent);
+    setAgents((current) => [...current.filter((agent) => agent.organizationId !== selectedOrganizationId), ...loaded]);
+    setSelectedAgentId((current) => loaded.some((agent) => agent.id === current) ? current : loaded[0]?.id ?? "");
+  }, [agentsQuery.data, selectedOrganizationId]);
+
   const notify = (message: string) => {
     setToast(message);
     window.setTimeout(() => setToast(null), 2600);
@@ -117,12 +165,72 @@ export function ProductShell() {
 
   const changeView = (next: ViewKey) => dispatch(setView(next));
   const selectedOrganization = organizations.find((organization) => organization.id === selectedOrganizationId) || organizations[0];
-  const organizationAgents = agents.filter((agent) => agent.organizationId === selectedOrganization.id);
+  const organizationAgents = agents.filter((agent) => agent.organizationId === selectedOrganization?.id);
   const selectedAgent = agents.find((agent) => agent.id === selectedAgentId) || organizationAgents[0] || agents[0];
   const openAgent = (agent: Agent, tab: AgentTab = "overview") => {
     setSelectedAgentId(agent.id);
     setAgentTab(tab);
     changeView("agent");
+  };
+
+  if (!selectedOrganization) {
+    const failed = organizationsQuery.isError;
+    return <main className="min-h-screen bg-app-bg text-app-text grid place-items-center p-8"><section className="panel max-w-xl p-8 text-center"><span className="wizard-step-icon mx-auto"><Database size={24}/></span><h1 className="mt-4 font-display text-2xl font-bold">{failed ? "Backend connection failed" : "Loading QueryDesk"}</h1><p className="mt-2 text-sm text-app-muted">{failed ? apiErrorMessage(organizationsQuery.error) : "Loading organizations and FAQ agents from the backend…"}</p>{failed && <button className="primary-button mt-5" onClick={() => organizationsQuery.refetch()}><RotateCcw size={16}/> Retry connection</button>}{!failed && organizationsQuery.isSuccess && <p className="mt-4 text-xs text-app-muted">No organization is available. Restart with <code>./start.sh</code> to create the development seed.</p>}</section></main>;
+  }
+
+  const saveOrganization = (updates: Partial<Organization>) => {
+    const previous = selectedOrganization;
+    setOrganizations((current) => current.map((organization) => organization.id === previous.id ? { ...organization, ...updates } : organization));
+    void faqApi.updateOrganization(previous.id, {
+      ...(updates.name !== undefined ? { name: updates.name } : {}),
+      ...(updates.description !== undefined ? { description: updates.description } : {}),
+      ...(updates.category !== undefined ? { category: updates.category } : {}),
+      version: previous.version,
+    }).then((saved) => {
+      setOrganizations((current) => current.map((organization) => organization.id === saved.id ? mapOrganization(saved) : organization));
+      notify("Organization profile saved");
+    }).catch((error) => {
+      setOrganizations((current) => current.map((organization) => organization.id === previous.id ? previous : organization));
+      notify(apiErrorMessage(error));
+    });
+  };
+
+  const saveAgent = (updates: Partial<Agent>) => {
+    if (!selectedAgent) return;
+    const previous = selectedAgent;
+    setAgents((current) => current.map((agent) => agent.id === previous.id ? { ...agent, ...updates, updated: "Saving…" } : agent));
+    void faqApi.updateAgent(previous.organizationId, previous.id, {
+      ...(updates.name !== undefined ? { name: updates.name } : {}),
+      ...(updates.description !== undefined ? { description: updates.description } : {}),
+      ...(updates.status !== undefined ? { status: updates.status === "Live" ? "ACTIVE" : "DRAFT", enabled: updates.status === "Live" } : {}),
+      version: previous.version,
+    }).then((saved) => {
+      setAgents((current) => current.map((agent) => agent.id === saved.id ? mapAgent(saved) : agent));
+      notify(`${saved.name} updated`);
+    }).catch((error) => {
+      setAgents((current) => current.map((agent) => agent.id === previous.id ? previous : agent));
+      notify(apiErrorMessage(error));
+    });
+  };
+
+  const duplicateSelectedAgent = () => {
+    if (!selectedAgent) return;
+    void faqApi.duplicateAgent(selectedAgent.organizationId, selectedAgent.id).then((created) => {
+      const mapped = mapAgent(created);
+      setAgents((current) => [mapped, ...current]);
+      setSelectedAgentId(mapped.id);
+      notify(`${mapped.name} created as a draft`);
+    }).catch((error) => notify(apiErrorMessage(error)));
+  };
+
+  const deleteSelectedAgent = () => {
+    if (!selectedAgent || !window.confirm(`Delete ${selectedAgent.name}? This cannot be undone.`)) return;
+    void faqApi.deleteAgent(selectedAgent.organizationId, selectedAgent.id).then(() => {
+      setAgents((current) => current.filter((agent) => agent.id !== selectedAgent.id));
+      setSelectedAgentId("");
+      changeView("agents");
+      notify(`${selectedAgent.name} deleted`);
+    }).catch((error) => notify(apiErrorMessage(error)));
   };
 
   return (
@@ -183,21 +291,38 @@ export function ProductShell() {
           <AnimatePresence mode="wait">
             <motion.div key={`${view}-${view === "organization" ? organizationTab : view === "agent" ? agentTab : ""}`} initial={{ opacity: 0, y: 7 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: .2 }}>
               {view === "dashboard" && <Dashboard agents={organizationAgents} organization={selectedOrganization} data={dashboardData[selectedOrganization.id] || { processing: { completed: 0, processing: 0, failed: 0 }, orchestratorConfigured: false, organizationWidgetConfigured: false, faqAgentWidgets: 0, activity: [] }} />}
-              {view === "organization" && <OrganizationPage tab={organizationTab} setTab={setOrganizationTab} organization={selectedOrganization} agents={organizationAgents} notify={notify} updateOrganization={(updates) => setOrganizations((current) => current.map((organization) => organization.id === selectedOrganization.id ? { ...organization, ...updates } : organization))} />}
+              {view === "organization" && <OrganizationPage tab={organizationTab} setTab={setOrganizationTab} organization={selectedOrganization} agents={organizationAgents} notify={notify} updateOrganization={saveOrganization} />}
               {view === "orchestrator" && <OrchestratorPage agents={organizationAgents} organizationName={selectedOrganization.name} configured={dashboardData[selectedOrganization.id]?.orchestratorConfigured || false} notify={notify} onSave={() => setDashboardData((current) => ({ ...current, [selectedOrganization.id]: { ...(current[selectedOrganization.id] || { processing: { completed: 0, processing: 0, failed: 0 }, organizationWidgetConfigured: false, faqAgentWidgets: 0, activity: [] }), orchestratorConfigured: true } }))}/>} 
               {view === "agents" && <AgentsPage agents={organizationAgents} search={search} create={() => setShowCreate(true)} openAgent={openAgent} notify={notify} />}
-              {view === "agent" && selectedAgent && <AgentDetailsPage agent={selectedAgent} tab={agentTab} setTab={setAgentTab} notify={notify} onBack={() => changeView("agents")} updateAgent={(updates) => setAgents((current) => current.map((agent) => agent.id === selectedAgent.id ? { ...agent, ...updates, updated: "Just now" } : agent))} />}
+              {view === "agent" && selectedAgent && <AgentDetailsPage agent={selectedAgent} tab={agentTab} setTab={setAgentTab} notify={notify} onBack={() => changeView("agents")} updateAgent={saveAgent} duplicateAgent={duplicateSelectedAgent} deleteAgent={deleteSelectedAgent} />}
               {view === "settings" && <SettingsPage notify={notify} />}
             </motion.div>
           </AnimatePresence>
         </div>
       </main>
 
-      <AnimatePresence>{showCreate && <CreateAgentModal close={() => setShowCreate(false)} add={(values) => {
-        const newAgent: Agent = { id: Date.now(), name: values.name, description: values.description, docs: 0, updated: "Just now", status: "Draft", color: "emerald", initials: values.name.split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase(), organizationId: selectedOrganization.id };
-        setAgents((current) => [newAgent, ...current]); setDashboardData((current) => ({ ...current, [selectedOrganization.id]: { ...(current[selectedOrganization.id] || { processing: { completed: 0, processing: 0, failed: 0 }, orchestratorConfigured: false, organizationWidgetConfigured: false, faqAgentWidgets: 0, activity: [] }), activity: [{ id: Date.now(), label: `${values.name} created`, context: "FAQ Agent", time: "Just now", kind: "agent" }, ...(current[selectedOrganization.id]?.activity || [])] } })); setSelectedAgentId(newAgent.id); setAgentTab("overview"); setShowCreate(false); notify(`${values.name} created`); changeView("agent");
+      <AnimatePresence>{showCreate && <CreateAgentModal close={() => setShowCreate(false)} add={async (values) => {
+        try {
+          const created = mapAgent(await faqApi.createAgent(selectedOrganization.id, values));
+          setAgents((current) => [created, ...current]);
+          setDashboardData((current) => ({ ...current, [selectedOrganization.id]: { ...(current[selectedOrganization.id] || { processing: { completed: 0, processing: 0, failed: 0 }, orchestratorConfigured: false, organizationWidgetConfigured: false, faqAgentWidgets: 0, activity: [] }), activity: [{ id: Date.now(), label: `${values.name} created`, context: "FAQ Agent", time: "Just now", kind: "agent" }, ...(current[selectedOrganization.id]?.activity || [])] } }));
+          setSelectedAgentId(created.id); setAgentTab("overview"); setShowCreate(false); notify(`${values.name} created as a draft`); changeView("agent");
+        } catch (error) { notify(apiErrorMessage(error)); }
       }} />}</AnimatePresence>
-      <AnimatePresence>{showOrganizationWizard && <CreateOrganizationWizard close={() => setShowOrganizationWizard(false)} complete={(organization, agentDraft) => { const created = { ...organization, id: Date.now() }; setOrganizations((current) => [...current, created]); setSelectedOrganizationId(created.id); if (agentDraft.name) { const createdAgent: Agent = { id: Date.now() + 1, name: agentDraft.name, description: agentDraft.description, docs: agentDraft.documentAdded ? 1 : 0, updated: "Just now", status: "Live", color: "emerald", initials: agentDraft.name.split(" ").map((word) => word[0]).join("").slice(0, 2).toUpperCase(), organizationId: created.id }; setAgents((current) => [createdAgent, ...current]); } setDashboardData((current) => ({ ...current, [created.id]: { processing: { completed: agentDraft.documentAdded ? 1 : 0, processing: 0, failed: 0 }, orchestratorConfigured: true, organizationWidgetConfigured: false, faqAgentWidgets: 0, activity: [{ id: Date.now(), label: `${agentDraft.name} created`, context: "FAQ Agent", time: "Just now", kind: "agent" }] } })); setShowOrganizationWizard(false); changeView("dashboard"); notify(`${created.name} is ready`); }}/>}</AnimatePresence>
+      <AnimatePresence>{showOrganizationWizard && <CreateOrganizationWizard close={() => setShowOrganizationWizard(false)} complete={async (organization, agentDraft) => {
+        try {
+          const created = mapOrganization(await faqApi.createOrganization({ name: organization.name, description: organization.description, category: organization.category }));
+          setOrganizations((current) => [...current, created]);
+          setSelectedOrganizationId(created.id);
+          if (agentDraft.name) {
+            const createdAgent = mapAgent(await faqApi.createAgent(created.id, { name: agentDraft.name, description: agentDraft.description }));
+            setAgents((current) => [createdAgent, ...current]);
+            setSelectedAgentId(createdAgent.id);
+          }
+          setDashboardData((current) => ({ ...current, [created.id]: { processing: { completed: 0, processing: 0, failed: 0 }, orchestratorConfigured: false, organizationWidgetConfigured: false, faqAgentWidgets: 0, activity: [{ id: Date.now(), label: `${agentDraft.name} created`, context: "FAQ Agent", time: "Just now", kind: "agent" }] } }));
+          setShowOrganizationWizard(false); changeView("dashboard"); notify(`${created.name} created; unavailable setup steps were skipped`);
+        } catch (error) { notify(apiErrorMessage(error)); }
+      }}/>}</AnimatePresence>
       <AnimatePresence>{toast && <motion.div className="toast" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}><span><Check size={15} /></span>{toast}</motion.div>}</AnimatePresence>
     </div>
   );
@@ -260,27 +385,30 @@ function OrganizationPage({ tab, setTab, organization, agents, notify, updateOrg
   return <>
     <PageHeading eyebrow="Organization overview" title={organization.name} description="Manage your organization identity, branding, access, and lifecycle."><button className={editing ? "secondary-button" : "primary-button"} onClick={() => setEditing((value) => !value)}>{editing ? <X size={15}/> : <Pencil size={15}/>} {editing ? "Cancel editing" : "Edit organization"}</button></PageHeading>
     <div className="context-tabs organization-tabs flex items-center gap-1 overflow-x-auto border-b border-app-border">{labels.map(({ key, label, icon: Icon, future }) => <button key={key} className={tab === key ? "active" : ""} onClick={() => setTab(key)}><Icon size={15}/>{label}{future && <em>Soon</em>}</button>)}</div>
-    {tab === "overview" && <div className="organization-general-grid grid grid-cols-[minmax(0,1.35fr)_minmax(280px,.65fr)] items-start gap-4 max-[900px]:grid-cols-1"><section className={`panel organization-form border-app-border bg-app-surface p-6 ${editing ? "editing" : ""}`}><div className="panel-title"><div><h2>Organization profile</h2><p>{editing ? "Update the organization information below." : "Core information used throughout QueryDesk."}</p></div>{editing && <button className="primary-button" onClick={() => { updateOrganization({ name: draftName.trim() || organization.name, description: draftDescription }); setEditing(false); notify("Organization profile saved"); }}><Save size={15}/> Save changes</button>}</div><label className="field"><span>Organization name</span><input value={draftName} disabled={!editing} onChange={(event) => setDraftName(event.target.value)}/></label><label className="field"><span>Description</span><textarea rows={4} value={draftDescription} disabled={!editing} onChange={(event) => setDraftDescription(event.target.value)}/></label>{!editing && <div className="edit-hint"><Pencil size={14}/>Click “Edit organization” to change these details.</div>}</section><aside className="panel organization-summary border-app-border bg-app-surface p-5"><div className="panel-title"><div><h2>Organization summary</h2><p>Current organization status.</p></div></div><div className="organization-facts"><span><small>Organization type</small><b>{organization.category}</b></span><span><small>Active agents</small><b>{agents.filter((agent) => agent.status === "Live").length}</b></span><span><small>Documents</small><b>{agents.reduce((total, agent) => total + agent.docs, 0)}</b></span><span><small>Created</small><b>April 18, 2026</b></span></div></aside></div>}
+    {tab === "overview" && <div className="organization-general-grid grid grid-cols-[minmax(0,1.35fr)_minmax(280px,.65fr)] items-start gap-4 max-[900px]:grid-cols-1"><section className={`panel organization-form border-app-border bg-app-surface p-6 ${editing ? "editing" : ""}`}><div className="panel-title"><div><h2>Organization profile</h2><p>{editing ? "Update the organization information below." : "Core information used throughout QueryDesk."}</p></div>{editing && <button className="primary-button" onClick={() => { updateOrganization({ name: draftName.trim() || organization.name, description: draftDescription }); setEditing(false); }}><Save size={15}/> Save changes</button>}</div><label className="field"><span>Organization name</span><input value={draftName} disabled={!editing} onChange={(event) => setDraftName(event.target.value)}/></label><label className="field"><span>Description</span><textarea rows={4} value={draftDescription} disabled={!editing} onChange={(event) => setDraftDescription(event.target.value)}/></label>{!editing && <div className="edit-hint"><Pencil size={14}/>Click “Edit organization” to change these details.</div>}</section><aside className="panel organization-summary border-app-border bg-app-surface p-5"><div className="panel-title"><div><h2>Organization summary</h2><p>Current organization status.</p></div></div><div className="organization-facts"><span><small>Organization type</small><b>{organization.category}</b></span><span><small>Active agents</small><b>{agents.filter((agent) => agent.status === "Live").length}</b></span><span><small>Documents</small><b>{agents.reduce((total, agent) => total + agent.docs, 0)}</b></span><span><small>Persistence</small><b>Backend managed</b></span></div></aside></div>}
     {tab === "branding" && <section className="panel organization-form"><div className="panel-title"><div><h2>Branding</h2><p>Customize how this organization appears to your team and customers.</p></div><button className="primary-button" onClick={() => notify("Organization branding saved")}><Save size={15}/> Save branding</button></div><div className="logo-editor"><span>{organization.initials}</span><div><b>Organization logo</b><small>PNG, JPG, or SVG. Max 2 MB.</small><button onClick={() => notify("Logo picker opened in demo mode")}>Upload logo</button></div></div><div className="two-fields"><label className="field"><span>Primary brand color</span><input type="color" defaultValue="#6c5ce7"/></label><label className="field"><span>Public display name</span><input defaultValue={organization.name}/></label></div></section>}
     {(tab === "members" || tab === "api") && <section className="panel future-panel"><span>{tab === "members" ? <UserRound size={25}/> : <Code2 size={25}/>}</span><h2>{tab === "members" ? "Members are coming soon" : "API keys are coming soon"}</h2><p>{tab === "members" ? "Invite teammates and control organization access in a future release." : "Create and manage organization API keys in a future release."}</p></section>}
     {tab === "danger" && <section className="panel danger-panel"><div><span><AlertCircle size={19}/></span><div><h2>Delete organization</h2><p>Permanently delete {organization.name}, all FAQ agents, documents, conversations, and widgets. This cannot be undone.</p></div></div><button className="danger-button" onClick={() => notify("Delete organization requires confirmation")}>Delete organization</button></section>}
   </>;
 }
 
-function AgentDetailsPage({ agent, tab, setTab, notify, updateAgent, onBack }: { agent: Agent; tab: AgentTab; setTab: (tab: AgentTab) => void; notify: (s: string) => void; updateAgent: (updates: Partial<Agent>) => void; onBack: () => void }) {
+function AgentDetailsPage({ agent, tab, setTab, notify, updateAgent, duplicateAgent, deleteAgent, onBack }: { agent: Agent; tab: AgentTab; setTab: (tab: AgentTab) => void; notify: (s: string) => void; updateAgent: (updates: Partial<Agent>) => void; duplicateAgent: () => void; deleteAgent: () => void; onBack: () => void }) {
   const tabs: { key: AgentTab; label: string }[] = [
     { key: "overview", label: "Overview" }, { key: "knowledge", label: "Knowledge" },
     { key: "ai", label: "AI Configuration" }, { key: "retrieval", label: "Retrieval" },
     { key: "prompt", label: "Prompt" }, { key: "playground", label: "Playground" }, { key: "widget", label: "Widget" },
   ];
   const [prompt, setPrompt] = useState("You are a friendly and accurate customer support specialist for Acme. Answer using only the supplied knowledge. If the answer is unavailable, say so clearly and offer to connect the user with a human.");
+  const [draftName, setDraftName] = useState(agent.name);
+  const [draftDescription, setDraftDescription] = useState(agent.description);
+  useEffect(() => { setDraftName(agent.name); setDraftDescription(agent.description); }, [agent.id, agent.name, agent.description]);
   return <>
     <div className="agent-detail-header mb-2.5 flex min-h-[92px] items-center justify-between gap-5 max-[680px]:flex-col max-[680px]:items-start">
       <div className="agent-detail-title"><AgentAvatar agent={agent} large/><div><span><button onClick={onBack}>FAQ Agents</button><ChevronRight size={12}/>{agent.name}</span><h1>{agent.name}</h1><p>{agent.description}</p></div></div>
-      <div className="agent-detail-actions"><Status status={agent.status}/><label className="switch labeled-switch"><input type="checkbox" checked={agent.status === "Live"} onChange={(event) => { updateAgent({ status: event.target.checked ? "Live" : "Draft" }); notify(`${agent.name} ${event.target.checked ? "enabled" : "disabled"}`); }}/><i/><span>{agent.status === "Live" ? "Enabled" : "Disabled"}</span></label><button className="icon-button"><MoreHorizontal size={18}/></button></div>
+      <div className="agent-detail-actions"><Status status={agent.status}/><label className="switch labeled-switch"><input type="checkbox" checked={agent.status === "Live"} onChange={(event) => updateAgent({ status: event.target.checked ? "Live" : "Draft" })}/><i/><span>{agent.status === "Live" ? "Enabled" : "Disabled"}</span></label><button className="icon-button"><MoreHorizontal size={18}/></button></div>
     </div>
     <div className="context-tabs agent-tabs flex items-center gap-1 overflow-x-auto border-b border-app-border">{tabs.map(({ key, label }) => <button key={key} className={tab === key ? "active" : ""} onClick={() => setTab(key)}>{label}{key === "knowledge" && <em>{agent.docs}</em>}</button>)}</div>
-    {tab === "overview" && <div className="agent-settings-layout grid grid-cols-[minmax(0,1.35fr)_minmax(260px,.65fr)] items-start gap-4 max-[900px]:grid-cols-1"><section className="panel agent-form-panel border-app-border bg-app-surface p-5"><div className="panel-title"><div><h2>Agent overview</h2><p>Give this agent a clear identity and responsibility.</p></div></div><label className="field"><span>Agent name</span><input defaultValue={agent.name} onBlur={(event) => updateAgent({ name: event.target.value })}/></label><label className="field"><span>Description</span><textarea rows={4} defaultValue={agent.description} onBlur={(event) => updateAgent({ description: event.target.value })}/></label><div className="form-actions mt-5 flex justify-end border-t border-app-border pt-4"><button className="primary-button" onClick={() => notify(`${agent.name} updated`)}><Save size={15}/> Save changes</button></div></section><aside className="panel agent-side-panel border-app-border bg-app-surface p-5"><div className="panel-title"><div><h2>Agent summary</h2><p>Backend-owned configuration details.</p></div></div><div className="agent-summary-list"><span><FileText size={16}/><div><small>Knowledge sources</small><b>{agent.docs} documents</b></div></span><span><CheckCircle2 size={16}/><div><small>Status</small><b>{agent.status === "Live" ? "Active" : "Draft"}</b></div></span><span><Pencil size={16}/><div><small>Last updated</small><b>{agent.updated}</b></div></span></div><div className="form-divider"/><button className="secondary-button full-button" onClick={() => notify(`${agent.name} duplicated`)}><Copy size={15}/> Duplicate agent</button><button className="danger-button" onClick={() => notify("Delete requires confirmation in the production API")}><Trash2 size={15}/> Delete agent</button></aside></div>}
+    {tab === "overview" && <div className="agent-settings-layout grid grid-cols-[minmax(0,1.35fr)_minmax(260px,.65fr)] items-start gap-4 max-[900px]:grid-cols-1"><section className="panel agent-form-panel border-app-border bg-app-surface p-5"><div className="panel-title"><div><h2>Agent overview</h2><p>Give this agent a clear identity and responsibility.</p></div></div><label className="field"><span>Agent name</span><input value={draftName} onChange={(event) => setDraftName(event.target.value)}/></label><label className="field"><span>Description</span><textarea rows={4} value={draftDescription} onChange={(event) => setDraftDescription(event.target.value)}/></label><div className="form-actions mt-5 flex justify-end border-t border-app-border pt-4"><button className="primary-button" onClick={() => updateAgent({ name: draftName.trim() || agent.name, description: draftDescription })}><Save size={15}/> Save changes</button></div></section><aside className="panel agent-side-panel border-app-border bg-app-surface p-5"><div className="panel-title"><div><h2>Agent summary</h2><p>Backend-owned configuration details.</p></div></div><div className="agent-summary-list"><span><FileText size={16}/><div><small>Knowledge sources</small><b>{agent.docs} documents</b></div></span><span><CheckCircle2 size={16}/><div><small>Status</small><b>{agent.status === "Live" ? "Active" : "Draft"}</b></div></span><span><Pencil size={16}/><div><small>Last updated</small><b>{agent.updated}</b></div></span></div><div className="form-divider"/><button className="secondary-button full-button" onClick={duplicateAgent}><Copy size={15}/> Duplicate agent</button><button className="danger-button" onClick={deleteAgent}><Trash2 size={15}/> Delete agent</button></aside></div>}
     {tab === "knowledge" && <KnowledgePage search="" notify={notify} embedded agentName={agent.name}/>} 
     {tab === "ai" && <AgentAIConfiguration notify={notify}/>} 
     {tab === "retrieval" && <AgentRetrieval notify={notify}/>} 
@@ -331,9 +459,9 @@ function OrchestratorPage({ agents, organizationName, configured, notify, onSave
   const [section, setSection] = useState<"overview" | "configuration" | "test">("overview");
   const [welcome, setWelcome] = useState("Hi! How can I help you today?");
   const [prompt, setPrompt] = useState("Route each question to the enabled FAQ agent whose name and description best match the user's intent. If no agent is suitable, explain that the organization does not have an agent for that topic.");
-  const [registeredIds, setRegisteredIds] = useState<number[]>(agents.filter((agent) => agent.status === "Live").map((agent) => agent.id));
+  const [registeredIds, setRegisteredIds] = useState<string[]>(agents.filter((agent) => agent.status === "Live").map((agent) => agent.id));
   const registeredAgents = agents.filter((agent) => registeredIds.includes(agent.id) && agent.status === "Live");
-  const toggleAgent = (id: number) => setRegisteredIds((current) => current.includes(id) ? current.filter((agentId) => agentId !== id) : [...current, id]);
+  const toggleAgent = (id: string) => setRegisteredIds((current) => current.includes(id) ? current.filter((agentId) => agentId !== id) : [...current, id]);
   return <>
     <PageHeading eyebrow="Organization routing" title="AI Orchestrator" description="Configure one entry point that routes requests to the appropriate FAQ agent.">
       {section === "configuration" && <button className="primary-button" onClick={() => { onSave(); notify("Orchestrator configuration saved"); }}><Save size={16}/> Save changes</button>}
@@ -363,7 +491,7 @@ function OrchestratorTestFlow({ agents, welcome, notify }: { agents: Agent[]; we
   };
   const submit = () => { const question = input.trim(); if (!question || routing) return; setRouting(true); setInput(""); window.setTimeout(() => { const agent = routeQuestion(question); setTurns((current) => [...current, { id: Date.now(), question, agent, answer: agent ? `${agent.name} received this test request. In production, it would search its ${agent.docs} connected knowledge documents and generate the answer.` : "No enabled FAQ agent is registered for this topic.", routeReason: agent ? `The question matched the configured purpose of ${agent.name}.` : "The registry has no enabled agent available for routing." }]); setRouting(false); }, 550); };
   const latest = turns[turns.length - 1];
-  return <div className="orchestrator-test-layout"><section className="panel routing-chat"><div className="routing-chat-head"><span><Network size={18}/></span><div><b>Organization routing test</b><small>Tests are not saved as production conversations.</small></div><button className="secondary-button" onClick={() => setTurns([])}><RotateCcw size={14}/>New test</button></div><div className="routing-chat-body">{turns.length === 0 && <div className="routing-welcome"><span><Sparkles size={22}/></span><h2>{welcome || "How can I help?"}</h2><p>Ask a question to see which registered FAQ agent receives it.</p><div><button onClick={() => setInput("Where can I find my invoices?")}>Where can I find my invoices?</button><button onClick={() => setInput("How do I reset my API key?")}>How do I reset my API key?</button><button onClick={() => setInput("What is the leave policy?")}>What is the leave policy?</button></div></div>}{turns.map((turn) => <div className="routing-turn" key={turn.id}><div className="route-question"><p>{turn.question}</p><span className="tiny-avatar">OS</span></div><div className="route-answer"><span className="bot-avatar"><Bot size={15}/></span><div><div className="routed-by"><Network size={13}/>Routed to <b>{turn.agent?.name || "No agent"}</b></div><p>{turn.answer}</p></div></div></div>)}{routing && <div className="routing-indicator"><span/><span/><span/>Orchestrator is selecting an agent</div>}</div><div className="routing-composer"><textarea rows={2} value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); submit(); } }} placeholder="Ask an organization-level question..."/><button onClick={submit} disabled={!input.trim() || routing}><Send size={17}/></button></div></section><aside className="panel route-inspector"><div className="panel-title"><div><h2>Routing trace</h2><p>Visible only while testing.</p></div></div>{latest ? <><div className="trace-agent"><AgentAvatar agent={latest.agent || { id: 0, name: "No agent", description: "", docs: 0, updated: "", status: "Draft", color: "orange", initials: "—", organizationId: 0 }}/><div><small>Selected FAQ Agent</small><b>{latest.agent?.name || "No route available"}</b></div></div><div className="trace-steps"><div className="complete"><span><Check size={13}/></span><p><b>Request received</b><small>Organization playground</small></p></div><div className="complete"><span><Check size={13}/></span><p><b>Registry evaluated</b><small>{agents.length} enabled agents considered</small></p></div><div className={latest.agent ? "complete" : "failed"}><span>{latest.agent ? <Check size={13}/> : <X size={13}/>}</span><p><b>{latest.agent ? "Agent selected" : "No route found"}</b><small>{latest.routeReason}</small></p></div><div className={latest.agent ? "complete" : "pending"}><span>{latest.agent ? <Check size={13}/> : "4"}</span><p><b>Agent invoked</b><small>{latest.agent ? "Direct agent mode" : "Not invoked"}</small></p></div></div><button className="secondary-button full-button" onClick={() => { navigator.clipboard?.writeText(latest.routeReason); notify("Routing reason copied"); }}><Copy size={14}/>Copy routing reason</button></> : <div className="trace-empty"><Network size={24}/><p>Send a test question to inspect the routing path.</p></div>}</aside></div>;
+  return <div className="orchestrator-test-layout"><section className="panel routing-chat"><div className="routing-chat-head"><span><Network size={18}/></span><div><b>Organization routing test</b><small>Tests are not saved as production conversations.</small></div><button className="secondary-button" onClick={() => setTurns([])}><RotateCcw size={14}/>New test</button></div><div className="routing-chat-body">{turns.length === 0 && <div className="routing-welcome"><span><Sparkles size={22}/></span><h2>{welcome || "How can I help?"}</h2><p>Ask a question to see which registered FAQ agent receives it.</p><div><button onClick={() => setInput("Where can I find my invoices?")}>Where can I find my invoices?</button><button onClick={() => setInput("How do I reset my API key?")}>How do I reset my API key?</button><button onClick={() => setInput("What is the leave policy?")}>What is the leave policy?</button></div></div>}{turns.map((turn) => <div className="routing-turn" key={turn.id}><div className="route-question"><p>{turn.question}</p><span className="tiny-avatar">OS</span></div><div className="route-answer"><span className="bot-avatar"><Bot size={15}/></span><div><div className="routed-by"><Network size={13}/>Routed to <b>{turn.agent?.name || "No agent"}</b></div><p>{turn.answer}</p></div></div></div>)}{routing && <div className="routing-indicator"><span/><span/><span/>Orchestrator is selecting an agent</div>}</div><div className="routing-composer"><textarea rows={2} value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); submit(); } }} placeholder="Ask an organization-level question..."/><button onClick={submit} disabled={!input.trim() || routing}><Send size={17}/></button></div></section><aside className="panel route-inspector"><div className="panel-title"><div><h2>Routing trace</h2><p>Visible only while testing.</p></div></div>{latest ? <><div className="trace-agent"><AgentAvatar agent={latest.agent || { id: "none", name: "No agent", description: "", docs: 0, updated: "", status: "Draft", color: "orange", initials: "—", organizationId: "none", version: 0 }}/><div><small>Selected FAQ Agent</small><b>{latest.agent?.name || "No route available"}</b></div></div><div className="trace-steps"><div className="complete"><span><Check size={13}/></span><p><b>Request received</b><small>Organization playground</small></p></div><div className="complete"><span><Check size={13}/></span><p><b>Registry evaluated</b><small>{agents.length} enabled agents considered</small></p></div><div className={latest.agent ? "complete" : "failed"}><span>{latest.agent ? <Check size={13}/> : <X size={13}/>}</span><p><b>{latest.agent ? "Agent selected" : "No route found"}</b><small>{latest.routeReason}</small></p></div><div className={latest.agent ? "complete" : "pending"}><span>{latest.agent ? <Check size={13}/> : "4"}</span><p><b>Agent invoked</b><small>{latest.agent ? "Direct agent mode" : "Not invoked"}</small></p></div></div><button className="secondary-button full-button" onClick={() => { navigator.clipboard?.writeText(latest.routeReason); notify("Routing reason copied"); }}><Copy size={14}/>Copy routing reason</button></> : <div className="trace-empty"><Network size={24}/><p>Send a test question to inspect the routing path.</p></div>}</aside></div>;
 }
 
 function PlaygroundPage({ notify, embedded = false, organizationMode = false, agentName = "Customer Support" }: { notify: (s: string) => void; embedded?: boolean; organizationMode?: boolean; agentName?: string }) {
@@ -425,7 +553,8 @@ function SettingsPage({ notify }: { notify: (s: string) => void }) {
   </>;
 }
 
-function CreateOrganizationWizard({ close, complete }: { close: () => void; complete: (organization: Omit<Organization, "id">, agent: { name: string; description: string; documentAdded: boolean }) => void }) {
+function CreateOrganizationWizard({ close, complete }: { close: () => void; complete: (organization: Omit<Organization, "id" | "version">, agent: { name: string; description: string; documentAdded: boolean }) => Promise<void> }) {
+  const [saving, setSaving] = useState(false);
   const [step, setStep] = useState(1);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -445,12 +574,12 @@ function CreateOrganizationWizard({ close, complete }: { close: () => void; comp
       {step === 3 && <><div className="wizard-step-icon"><Bot size={24}/></div><h1>Create your first FAQ agent</h1><p>Give your organization its first specialist. Add more agents anytime.</p><label className="field"><span>Agent name</span><input value={agentName} onChange={(event) => setAgentName(event.target.value)} placeholder="Customer Support"/></label><label className="field"><span>Description</span><textarea rows={4} value={agentDescription} onChange={(event) => setAgentDescription(event.target.value)} placeholder="Handles customer support questions."/></label><div className="agent-template-preview"><span className="agent-avatar violet">{agentName.split(" ").map((word) => word[0]).join("").slice(0, 2).toUpperCase() || "AI"}</span><div><b>{agentName || "Your first agent"}</b><small>{agentDescription || "Describe this agent's responsibility."}</small></div><Status status="Draft"/></div></>}
       {step === 4 && <><div className="wizard-step-icon"><FileUp size={24}/></div><h1>Upload knowledge</h1><p>Add the first document this agent will use to answer questions.</p><button className={`wizard-drop-zone ${documentAdded ? "uploaded" : ""}`} onClick={() => setDocumentAdded(true)}><span>{documentAdded ? <CheckCircle2 size={25}/> : <FileUp size={25}/>}</span><b>{documentAdded ? "Product_guide.pdf is ready" : "Drag a PDF here"}</b><small>{documentAdded ? "2.4 MB · Ready to process" : "or click to browse files"}</small>{!documentAdded && <em>Browse files</em>}</button><div className="supported-files"><span>Supported formats</span><div><b>PDF</b><b>TXT</b><b>Markdown</b></div></div></>}
       {step === 5 && <div className="wizard-ready"><span><Check size={34}/></span><h1>Your organization is ready 🎉</h1><p>Everything is configured. You can start testing and adding more knowledge.</p><div className="ready-summary"><div><Building2 size={18}/><span><small>Organization</small><b>{name || "New organization"}</b></span><CheckCircle2 size={17}/></div><div><Network size={18}/><span><small>AI Orchestrator</small><b>Configured</b></span><CheckCircle2 size={17}/></div><div><Bot size={18}/><span><small>First FAQ agent</small><b>{agentName}</b></span><CheckCircle2 size={17}/></div><div><FileText size={18}/><span><small>Knowledge</small><b>{documentAdded ? "1 document added" : "Ready to upload later"}</b></span><CheckCircle2 size={17}/></div></div></div>}
-      <div className="wizard-actions">{step > 1 && step < 5 && <button className="secondary-button" onClick={() => setStep((current) => current - 1)}>Back</button>}<span/><button className="primary-button" disabled={step === 1 && !name.trim()} onClick={() => step < 5 ? next() : complete({ name: name || "New organization", description: description || "A new QueryDesk organization.", category: "Organization", initials: (name || "N").charAt(0).toUpperCase(), color: "violet" }, { name: agentName, description: agentDescription, documentAdded })}>{step === 5 ? "Go to dashboard" : step === 4 ? "Continue" : step === 3 ? "Create agent" : "Continue"}<ArrowRight size={16}/></button></div>
+      <div className="wizard-actions">{step > 1 && step < 5 && <button className="secondary-button" onClick={() => setStep((current) => current - 1)}>Back</button>}<span/><button className="primary-button" disabled={saving || (step === 1 && !name.trim())} onClick={async () => { if (step < 5) { next(); return; } setSaving(true); await complete({ name: name || "New organization", description: description || "A new QueryDesk organization.", category: "Organization", initials: (name || "N").charAt(0).toUpperCase(), color: "violet" }, { name: agentName, description: agentDescription, documentAdded }); setSaving(false); }}>{saving ? "Creating…" : step === 5 ? "Go to dashboard" : step === 4 ? "Continue" : step === 3 ? "Create agent" : "Continue"}<ArrowRight size={16}/></button></div>
     </motion.div></AnimatePresence></div></main>
   </motion.div>;
 }
 
-function CreateAgentModal({ close, add }: { close: () => void; add: (values: AgentForm) => void }) {
+function CreateAgentModal({ close, add }: { close: () => void; add: (values: AgentForm) => Promise<void> }) {
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<AgentForm>({ resolver: zodResolver(agentSchema), defaultValues: { name: "", description: "" } });
   return <motion.div className="modal-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={(e) => e.target === e.currentTarget && close()}><motion.form className="modal" onSubmit={handleSubmit(add)} initial={{ opacity: 0, scale: .96, y: 15 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: .97, y: 10 }}>
     <div className="modal-head"><span><Sparkles size={20}/></span><div><h2>Create an FAQ agent</h2><p>Give your new expert a clear purpose.</p></div><button type="button" className="icon-button" onClick={close}><X size={18}/></button></div>
