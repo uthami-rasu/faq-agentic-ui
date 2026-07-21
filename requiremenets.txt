@@ -1,0 +1,481 @@
+# AI FAQ Agent Builder
+
+## Frontend Product Requirements — V1
+
+## 1. Purpose
+
+The AI FAQ Agent Builder enables organizations to create, configure, test, and deploy AI-powered FAQ agents without requiring technical knowledge.
+
+Users shall be able to:
+
+- Configure their organization and its AI Orchestrator.
+- Create and manage FAQ agents.
+- Upload knowledge documents to individual FAQ agents.
+- Configure each agent's model, retrieval behavior, and prompt.
+- Test individual agents and organization-wide routing.
+- Generate and preview organization or agent-specific website widgets.
+
+## 2. Product and Design Principles
+
+- Modern, professional SaaS interface.
+- Clean and minimal visual design.
+- Responsive desktop, tablet, and mobile layouts.
+- Beginner-friendly workflows with progressive disclosure.
+- Consistent navigation and immediate feedback.
+- Fast interactions with minimal clicks.
+- Accessible light and dark themes.
+
+The interface should feel comparable in quality to Vercel, Linear, Supabase, and OpenAI.
+
+## 3. Frontend Technology
+
+- Next.js 15+
+- TypeScript
+- Tailwind CSS v4
+- shadcn/ui conventions
+- Redux Toolkit for global client/application state
+- TanStack Query for API server state and caching
+- React Hook Form and Zod for forms and validation
+- Framer Motion for purposeful transitions
+- Lucide React for icons
+- Axios as the API client
+
+### Styling and Typography Standards
+
+- Tailwind CSS utilities shall be the default styling approach for layouts, spacing, responsive behavior, colors, typography, and reusable component states.
+- Tailwind design tokens and component layers may be used for shared primitives such as panels, buttons, fields, badges, and tabs.
+- Conventional CSS should be reserved for bespoke visualizations or interactions that are materially clearer than utility composition, such as charts, routing diagrams, and widget mockups.
+- Inter shall be used for interface and body copy.
+- Manrope shall be used for headings and display typography.
+- Both Google Font families shall be self-hosted to avoid third-party runtime requests and layout shifts.
+
+## 4. Information Architecture
+
+Navigation shall represent the user's business workflow rather than the system's technical architecture.
+
+The V1 sidebar contains only:
+
+```text
+Organization Selector
+
+Dashboard
+AI Orchestrator
+FAQ Agents
+Settings
+```
+
+The sidebar is flat and contains no nested navigation menus. The selected organization is displayed above the navigation and acts as the entry point for organization switching, creation, and overview management.
+
+When an FAQ agent is opened, its owned features are presented in the agent detail workspace:
+
+```text
+FAQ Agents
+    Selected Agent
+        Overview
+        Knowledge
+        AI Configuration
+        Retrieval
+        Prompt
+        Playground
+        Widget
+```
+
+The following are not standalone top-level modules in V1:
+
+- Knowledge Sources: documents belong to an FAQ agent.
+- AI Playground: playgrounds belong to an FAQ agent or the organization orchestrator.
+- Widget Deployment: widgets belong to an FAQ agent.
+- Organization list: organizations are switched through the sidebar selector.
+
+## 5. Application Shell
+
+The application shall provide:
+
+- A persistent desktop sidebar and mobile navigation drawer.
+- Clearly highlighted active page.
+- Organization selector showing the active organization.
+- Organization switching and creation from the selector.
+- Global search for agents and their documents.
+- Theme switcher.
+- Notifications.
+- User profile and plan summary.
+
+## 6. Dashboard
+
+The dashboard is a status overview for the currently selected organization. Every value must map directly to data owned or computed by the V1 backend.
+
+Display:
+
+- FAQ Agents: total, active, and draft counts.
+- Knowledge Documents: total uploaded document count.
+- Document Processing: completed, processing, and failed counts.
+- AI Orchestrator: configured status and registered-agent count.
+- Widgets: organization-widget configuration state and FAQ-agent widget count.
+- Recent Activity: document uploads, agent creation or updates, and widget configuration events already recorded by the application.
+
+Do not display customer-support analytics, question volume, resolution rate, response timing, satisfaction, helpfulness, readiness scores, visitor analytics, traffic, production conversations, token usage, chunk counts, embedding counts, vector counts, fabricated events, promotional content, or any other metric unavailable from the V1 backend.
+
+## 7. Organizations
+
+An account may belong to multiple organizations. All agents, documents, orchestrator settings, and usage data are scoped to the currently selected organization.
+
+### 7.1 Organization Selector
+
+The sidebar displays the active organization and an Organization label. Opening the selector displays:
+
+- All organizations available to the current user.
+- Organization name and category/description.
+- A checkmark beside the active organization.
+- A search input that filters organization options by name or category.
+- An explicit Edit Organization action for the active organization.
+- A Create Organization action.
+
+Selecting a different organization switches context and returns to its dashboard. Selecting the already-active organization opens its Organization Overview.
+
+The term “Workspace” shall not be used for organization scope anywhere in the interface.
+
+### 7.2 Create Organization Flow
+
+Create Organization opens a focused full-screen, five-step setup experience.
+
+Step 1 — Organization:
+
+- Organization name.
+- Description.
+- Optional logo upload.
+
+Step 2 — AI Orchestrator:
+
+- Welcome message.
+- System prompt.
+
+Step 3 — First FAQ Agent:
+
+- Agent name.
+- Description.
+
+Step 4 — Knowledge:
+
+- Drag-and-drop or browse upload.
+- PDF, TXT, and Markdown support.
+- This document belongs to the newly created FAQ agent.
+
+Step 5 — Ready:
+
+- Organization summary.
+- Orchestrator confirmation.
+- First agent confirmation.
+- Document confirmation.
+- Go to Dashboard action.
+
+### 7.3 Organization Overview
+
+Opening the active organization provides these contextual tabs:
+
+```text
+Overview | Branding | Members (Future) | API Keys (Future) | Danger Zone
+```
+
+Overview contains the editable organization name and description, plus organization type, agent count, and document count. Editing must be a clearly visible primary action and changes must be explicitly saved or cancelled.
+
+Branding contains the logo, primary color, and public display name.
+
+Danger Zone contains the destructive Delete Organization action with confirmation requirements.
+
+### 7.4 AI Orchestrator
+
+Every organization owns one AI Orchestrator. AI Orchestrator is a direct sidebar destination within the currently selected organization. It routes each request to the most appropriate enabled FAQ agent.
+
+The page contains three contextual sections:
+
+```text
+Overview | Configuration | Test Routing
+```
+
+Overview displays:
+
+- Active or inactive configuration state.
+- Registered-agent count.
+- Available enabled-agent count.
+- Welcome-message and system-prompt configuration state.
+- A clear request flow: Organization Request → AI Orchestrator → Selected FAQ Agent.
+- The currently registered FAQ agents.
+
+Configure:
+
+- Welcome message.
+- System prompt.
+
+Display:
+
+- Registered FAQ agents.
+- Agent name, description, status, and availability for routing.
+
+Actions:
+
+- Enable or disable an agent for routing.
+- Save changes.
+- Test the orchestrator in its playground.
+
+The Agent Registry shall:
+
+- Include only FAQ agents owned by the selected organization.
+- Allow enabled FAQ agents to be registered or removed from routing.
+- Prevent disabled or draft FAQ agents from being registered.
+- Use each agent's name and description as its routing responsibility.
+
+The Test Routing flow shall:
+
+- Accept an organization-level test question.
+- Evaluate only enabled, registered FAQ agents.
+- Show the selected FAQ agent or a clear No Route result.
+- Show a temporary routing trace: request received, registry evaluated, agent selected, and agent invoked.
+- Explain why the test request was routed to the selected agent.
+- Clearly state that tests are not production conversations or analytics.
+- Avoid fabricated routing confidence, latency, accuracy, or performance values.
+
+The page shall clearly communicate that the orchestrator:
+
+- Does not own documents.
+- Does not perform its own semantic search.
+- Routes requests to FAQ agents, which own knowledge and retrieval.
+
+## 8. FAQ Agents
+
+Display all FAQ agents as searchable cards or rows.
+
+Each agent summary displays:
+
+- Name.
+- Description.
+- Status.
+- Document count.
+- Last updated time.
+
+Actions:
+
+- Create.
+- Open.
+- Edit.
+- Delete.
+- Duplicate.
+- Enable or disable.
+
+Destructive actions shall require confirmation.
+
+## 9. FAQ Agent Details
+
+Opening an FAQ agent presents a dedicated workspace with these tabs:
+
+```text
+Overview
+Knowledge
+AI Configuration
+Retrieval
+Prompt
+Playground
+Widget
+```
+
+The agent header displays its name, description, current status, last update, and an enable/disable control.
+
+### 9.1 Overview
+
+Configure:
+
+- Agent name.
+- Description.
+- Enabled or disabled status.
+
+Provide save, duplicate, and delete actions.
+
+### 9.2 Knowledge
+
+Documents are owned by the current FAQ agent. There is no organization-wide Knowledge Sources page in V1.
+
+Supported files:
+
+- PDF.
+- TXT.
+- Markdown.
+
+Upload methods:
+
+- Drag and drop.
+- File browser.
+
+Display:
+
+- File name and type.
+- File size.
+- Upload date.
+- Processing status.
+- Chunk count.
+
+Processing states:
+
+- Uploading.
+- Processing.
+- Completed.
+- Failed.
+
+Actions:
+
+- Upload.
+- Delete.
+- Retry failed processing.
+
+### 9.3 AI Configuration
+
+Configure:
+
+- Model.
+- Temperature.
+- Maximum response tokens.
+
+Explain each setting in plain language and show safe defaults.
+
+### 9.4 Retrieval
+
+Configure:
+
+- Chunk size.
+- Chunk overlap.
+- Similarity threshold.
+- Top K results.
+
+Advanced retrieval settings should use progressive disclosure and include recommended ranges.
+
+### 9.5 Prompt
+
+Configure the FAQ agent's system prompt.
+
+Provide:
+
+- Character or token guidance.
+- Reset-to-default action.
+- Prompt-writing guidance.
+- Save action.
+
+### 9.6 Playground
+
+The playground tests the current FAQ agent directly and should closely resemble the final agent widget.
+
+Support:
+
+- New and clear chat.
+- Send message.
+- Streaming responses and typing indicator.
+- Markdown, tables, lists, hyperlinks, and code blocks.
+- Automatic scrolling.
+- Copy and retry response.
+- Answered-by attribution.
+- Selected-agent and retrieved-source information when the live playground response provides it.
+
+### 9.7 Agent Widget
+
+The optional FAQ agent widget routes directly to the selected agent.
+
+Allow users to:
+
+- Customize appearance and welcome message.
+- Preview the widget.
+- Generate and copy agent-specific embed code.
+- Publish changes.
+
+## 10. Settings
+
+Settings contain application-level preferences rather than organization content.
+
+### Overview
+
+- Theme: Light, Dark, or System.
+- Language placeholder for future localization.
+
+### Appearance
+
+- Sidebar behavior.
+- Interface density.
+
+### About
+
+- Application version.
+- Documentation placeholder.
+
+## 11. Global Search
+
+Search shall support:
+
+- FAQ agents.
+- Documents owned by FAQ agents.
+
+Results should update while typing and link users to the owning agent and relevant tab.
+
+## 12. Notifications
+
+Display toast notifications for:
+
+- FAQ agent created, updated, duplicated, enabled, disabled, or deleted.
+- Document upload and processing changes.
+- Organization and orchestrator settings saved.
+- Widget generated, copied, or published.
+- Application settings saved.
+
+## 13. Loading, Empty, and Error States
+
+Use skeleton loaders for initial page and data loading.
+
+Empty states shall explain the next useful action, for example:
+
+- No FAQ agents: “Create your first FAQ agent.”
+- No documents in an agent: “Upload knowledge to help this agent answer questions.”
+- No conversation: “Ask a question to test this agent.”
+
+Errors shall be specific, non-technical, and retryable where possible, including:
+
+- Upload failed.
+- Processing failed.
+- Network error.
+- FAQ agent not found.
+
+## 14. Theme and Accessibility
+
+- Support Light, Dark, and System theme preferences.
+- Remember the selected theme across sessions.
+- Use the operating-system preference on first visit.
+- Use centralized design tokens rather than hardcoded component colors.
+- Ensure charts, dialogs, forms, tables, playgrounds, and widgets adapt consistently.
+- Provide keyboard focus states and semantic controls.
+- Maintain appropriate contrast and touch target sizes.
+
+## 15. State Management
+
+Use Redux Toolkit for application-wide client state, including:
+
+- Current primary page.
+- Selected organization and Organization Overview tab.
+- Organization selector and creation-flow state.
+- Selected FAQ agent and active agent detail tab.
+- Theme and sidebar state.
+- Active dialogs and notifications where globally shared.
+
+Use TanStack Query for server data, caching, invalidation, and API synchronization.
+
+Use React Hook Form for form state and Zod for validation.
+
+Use local component state only for state that is private to one component, such as an open preview or draft input.
+
+## 16. Expected V1 Workflow
+
+1. Log in and select an organization.
+2. If necessary, create an organization through the guided setup flow.
+3. Open the organization dashboard.
+4. Create or open an FAQ agent.
+5. Upload knowledge from the agent's Knowledge tab.
+6. Configure the model, retrieval behavior, and prompt.
+7. Test the agent in its Playground tab.
+8. Configure the selected organization's AI Orchestrator.
+9. Optionally configure and publish the agent-specific widget.
+10. Copy the embed code and deploy it to a website.
+
+The interface shall keep users within the context of the organization or agent they are currently managing.
