@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -15,7 +16,8 @@ import {
   UserRound, WandSparkles, X, Zap,
 } from "lucide-react";
 import { setSidebarOpen, setTheme, setView, useAppDispatch, useAppSelector, ViewKey } from "@/store";
-import { AgentDto, ApiError, faqApi, InitialAppData, OrganizationDto } from "@/lib/api";
+import { AgentDto, ApiError, faqApi, InitialAppData, OrganizationDto, PaginatedResult } from "@/lib/api";
+import { loadAgentsPageAction } from "@/app/actions";
 
 type Agent = {
   id: string; name: string; description: string; docs: number; updated: string;
@@ -102,14 +104,17 @@ const agentSchema = z.object({
 });
 type AgentForm = z.infer<typeof agentSchema>;
 
-export function ProductShell({ initialData }: { initialData?: InitialAppData }) {
+export function ProductShell({ initialData, initialView }: { initialData?: InitialAppData; initialView?: ViewKey }) {
   const dispatch = useAppDispatch();
   const queryClient = useQueryClient();
-  const { view, theme, sidebarOpen } = useAppSelector((state) => state.ui);
+  const router = useRouter();
+  const { view: storedView, theme, sidebarOpen } = useAppSelector((state) => state.ui);
+  const [applyingInitialView, setApplyingInitialView] = useState(Boolean(initialView));
+  const view = applyingInitialView && initialView ? initialView : storedView;
   const serverOrganizations = initialData?.organizations.map(mapOrganization) ?? [];
   const serverAgents = initialData?.agentsPage.items.map(mapAgent) ?? [];
   const [agents, setAgents] = useState<Agent[]>(useMockData ? initialAgents : serverAgents);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(initialData?.faqQuery.search ?? "");
   const [showCreate, setShowCreate] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [organizationTab, setOrganizationTab] = useState<OrganizationTab>("overview");
@@ -124,20 +129,32 @@ export function ProductShell({ initialData }: { initialData?: InitialAppData }) 
   const [deleteConfirmation, setDeleteConfirmation] = useState<{ agent: Agent; returnToList: boolean } | null>(null);
   const [deletingAgent, setDeletingAgent] = useState(false);
 
+  useEffect(() => {
+    if (!initialView) return;
+    dispatch(setView(initialView));
+    setApplyingInitialView(false);
+  }, [dispatch, initialView]);
+
   const organizationsQuery = useQuery({
     queryKey: ["organizations"],
     queryFn: () => faqApi.listOrganizations(),
     enabled: !useMockData,
     initialData: initialData?.organizations,
     retry: 1,
+    staleTime: Number.POSITIVE_INFINITY,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
   });
 
   const agentsQuery = useQuery({
     queryKey: ["faq-agents", selectedOrganizationId],
-    queryFn: () => faqApi.listAgents(selectedOrganizationId, { pageSize: 100 }),
+    queryFn: () => loadAgentsPageAction({ organizationId: selectedOrganizationId, pageSize: 100 }),
     enabled: !useMockData && Boolean(selectedOrganizationId),
     initialData: selectedOrganizationId === initialData?.organizations[0]?.id ? initialData.agentsPage : undefined,
     retry: 1,
+    staleTime: Number.POSITIVE_INFINITY,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
   });
 
   useEffect(() => {
@@ -150,6 +167,11 @@ export function ProductShell({ initialData }: { initialData?: InitialAppData }) 
     document.documentElement.dataset.theme = theme;
     localStorage.setItem("querydesk-theme", theme);
   }, [theme]);
+
+  useEffect(() => {
+    if (!initialData) return;
+    setSearch(initialData.faqQuery.search);
+  }, [initialData?.faqQuery.search]);
 
   useEffect(() => {
     if (!organizationsQuery.data) return;
@@ -229,6 +251,7 @@ export function ProductShell({ initialData }: { initialData?: InitialAppData }) 
       setAgents((current) => [mapped, ...current]);
       if (openCreated) setSelectedAgentId(mapped.id);
       void queryClient.invalidateQueries({ queryKey: ["faq-agents-page", source.organizationId] });
+      router.refresh();
       notify(`${mapped.name} created as a draft`);
     }).catch((error) => notify(apiErrorMessage(error)));
   };
@@ -246,6 +269,7 @@ export function ProductShell({ initialData }: { initialData?: InitialAppData }) 
       if (selectedAgentId === target.id) setSelectedAgentId("");
       if (returnToList) changeView("agents");
       void queryClient.invalidateQueries({ queryKey: ["faq-agents-page", target.organizationId] });
+      router.refresh();
       setDeleteConfirmation(null);
       notify(`${target.name} deleted`);
     }).catch((error) => notify(apiErrorMessage(error))).finally(() => setDeletingAgent(false));
@@ -314,7 +338,7 @@ export function ProductShell({ initialData }: { initialData?: InitialAppData }) 
               {view === "dashboard" && <Dashboard agents={organizationAgents} organization={selectedOrganization} data={dashboardData[selectedOrganization.id] || { processing: { completed: 0, processing: 0, failed: 0 }, orchestratorConfigured: false, organizationWidgetConfigured: false, faqAgentWidgets: 0, activity: [] }} />}
               {view === "organization" && <OrganizationPage tab={organizationTab} setTab={setOrganizationTab} organization={selectedOrganization} agents={organizationAgents} notify={notify} updateOrganization={saveOrganization} />}
               {view === "orchestrator" && <OrchestratorPage agents={organizationAgents} organizationName={selectedOrganization.name} configured={dashboardData[selectedOrganization.id]?.orchestratorConfigured || false} notify={notify} onSave={() => setDashboardData((current) => ({ ...current, [selectedOrganization.id]: { ...(current[selectedOrganization.id] || { processing: { completed: 0, processing: 0, failed: 0 }, organizationWidgetConfigured: false, faqAgentWidgets: 0, activity: [] }), orchestratorConfigured: true } }))}/>} 
-              {view === "agents" && <AgentsPage agents={organizationAgents} organizationId={selectedOrganization.id} search={search} setSearch={setSearch} create={() => setShowCreate(true)} openAgent={openAgent} duplicateAgent={(agent) => duplicateAgent(agent)} deleteAgent={(agent) => deleteAgent(agent)} notify={notify} />}
+              {view === "agents" && <AgentsPage agents={organizationAgents} organizationId={selectedOrganization.id} search={search} setSearch={setSearch} ssrPage={selectedOrganization.id === initialData?.organizations[0]?.id ? initialData.faqAgentsPage : undefined} ssrQuery={selectedOrganization.id === initialData?.organizations[0]?.id ? initialData.faqQuery : undefined} create={() => setShowCreate(true)} openAgent={openAgent} duplicateAgent={(agent) => duplicateAgent(agent)} deleteAgent={(agent) => deleteAgent(agent)} notify={notify} />}
               {view === "agent" && selectedAgent && <AgentDetailsPage agent={selectedAgent} tab={agentTab} setTab={setAgentTab} notify={notify} onBack={() => changeView("agents")} updateAgent={saveAgent} duplicateAgent={duplicateSelectedAgent} deleteAgent={deleteSelectedAgent} />}
               {view === "settings" && <SettingsPage notify={notify} />}
             </motion.div>
@@ -328,6 +352,7 @@ export function ProductShell({ initialData }: { initialData?: InitialAppData }) 
           setAgents((current) => [created, ...current]);
           setDashboardData((current) => ({ ...current, [selectedOrganization.id]: { ...(current[selectedOrganization.id] || { processing: { completed: 0, processing: 0, failed: 0 }, orchestratorConfigured: false, organizationWidgetConfigured: false, faqAgentWidgets: 0, activity: [] }), activity: [{ id: Date.now(), label: `${values.name} created`, context: "FAQ Agent", time: "Just now", kind: "agent" }, ...(current[selectedOrganization.id]?.activity || [])] } }));
           setSelectedAgentId(created.id); setAgentTab("overview"); setShowCreate(false); notify(`${values.name} created as a draft`); changeView("agent");
+          router.refresh();
         } catch (error) { notify(apiErrorMessage(error)); }
       }} />}</AnimatePresence>
       <AnimatePresence>{showOrganizationWizard && <CreateOrganizationWizard close={() => setShowOrganizationWizard(false)} complete={async (organization, agentDraft) => {
@@ -372,18 +397,29 @@ function Dashboard({ agents, organization, data }: { agents: Agent[]; organizati
   </>;
 }
 
-function AgentsPage({ agents, organizationId, search, setSearch, create, openAgent, duplicateAgent, deleteAgent, notify }: { agents: Agent[]; organizationId: string; search: string; setSearch: (value: string) => void; create: () => void; openAgent: (agent: Agent, tab?: AgentTab) => void; duplicateAgent: (agent: Agent) => void; deleteAgent: (agent: Agent) => void; notify: (s: string) => void }) {
+function AgentsPage({ agents, organizationId, search, setSearch, ssrPage, ssrQuery, create, openAgent, duplicateAgent, deleteAgent, notify }: { agents: Agent[]; organizationId: string; search: string; setSearch: (value: string) => void; ssrPage?: PaginatedResult<AgentDto>; ssrQuery?: InitialAppData["faqQuery"]; create: () => void; openAgent: (agent: Agent, tab?: AgentTab) => void; duplicateAgent: (agent: Agent) => void; deleteAgent: (agent: Agent) => void; notify: (s: string) => void }) {
   const pageSize = 6;
-  const [page, setPage] = useState(1);
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const [localPage, setLocalPage] = useState(1);
   const [layout, setLayout] = useState<"grid" | "list">("grid");
-  const [debouncedSearch, setDebouncedSearch] = useState(search.trim());
   const [actionAgentId, setActionAgentId] = useState<string | null>(null);
+  const page = ssrQuery?.page ?? localPage;
 
   useEffect(() => {
-    const timeout = window.setTimeout(() => setDebouncedSearch(search.trim()), 250);
+    if (!ssrQuery || search.trim() === ssrQuery.search) return;
+    const timeout = window.setTimeout(() => {
+      const params = new URLSearchParams(window.location.search);
+      const nextSearch = search.trim();
+      if (nextSearch) params.set("agent_search", nextSearch);
+      else params.delete("agent_search");
+      params.set("agent_page", "1");
+      params.set("view", "agents");
+      startTransition(() => router.replace(`${window.location.pathname}?${params}`, { scroll: false }));
+    }, 250);
     return () => window.clearTimeout(timeout);
-  }, [search]);
-  useEffect(() => { setPage(1); }, [search, organizationId]);
+  }, [router, search, ssrQuery]);
+  useEffect(() => { setLocalPage(1); }, [search, organizationId]);
   useEffect(() => {
     if (!actionAgentId) return;
     const closeMenu = () => setActionAgentId(null);
@@ -394,34 +430,37 @@ function AgentsPage({ agents, organizationId, search, setSearch, create, openAge
   }, [actionAgentId]);
   useEffect(() => { setActionAgentId(null); }, [page, search, layout, organizationId]);
 
-  const agentsPageQuery = useQuery({
-    queryKey: ["faq-agents-page", organizationId, debouncedSearch, page, pageSize],
-    queryFn: () => faqApi.listAgents(organizationId, { search: debouncedSearch, page, pageSize }),
-    enabled: !useMockData && Boolean(organizationId),
-    placeholderData: (previous) => previous,
-    staleTime: 0,
-  });
   const mockMatches = useMemo(() => agents.filter((agent) => `${agent.name} ${agent.description}`.toLowerCase().includes(search.trim().toLowerCase())), [agents, search]);
-  const visibleAgents = useMockData
+  const useLocalPage = useMockData || !ssrPage;
+  const visibleAgents = useLocalPage
     ? mockMatches.slice((page - 1) * pageSize, page * pageSize)
-    : (agentsPageQuery.data?.items ?? []).map(mapAgent);
-  const totalItems = useMockData ? mockMatches.length : agentsPageQuery.data?.totalItems ?? 0;
-  const totalPages = useMockData ? Math.ceil(totalItems / pageSize) : agentsPageQuery.data?.totalPages ?? 0;
+    : ssrPage.items.map(mapAgent);
+  const totalItems = useLocalPage ? mockMatches.length : ssrPage.totalItems;
+  const totalPages = useLocalPage ? Math.ceil(totalItems / pageSize) : ssrPage.totalPages;
   const firstVisible = totalItems === 0 ? 0 : (page - 1) * pageSize + 1;
   const lastVisible = Math.min(page * pageSize, totalItems);
   const firstPageButton = Math.max(1, Math.min(page - 2, Math.max(1, totalPages - 4)));
   const pageButtons = Array.from({ length: Math.min(5, totalPages) }, (_, index) => firstPageButton + index);
   const selectAgent = (agent: Agent) => { openAgent(agent); notify(`${agent.name} opened`); };
-  const showAgentShimmer = !useMockData && agentsPageQuery.isFetching;
+  const showAgentShimmer = !useMockData && isPending;
+  const goToPage = (nextPage: number) => {
+    if (!ssrQuery) {
+      setLocalPage(nextPage);
+      return;
+    }
+    const params = new URLSearchParams(window.location.search);
+    params.set("agent_page", String(nextPage));
+    params.set("view", "agents");
+    startTransition(() => router.replace(`${window.location.pathname}?${params}`, { scroll: false }));
+  };
 
   return <>
     <PageHeading eyebrow="Knowledge team" title="FAQ Agents" description="Build specialized AI agents grounded in your company knowledge.">
       <button className="secondary-button"><SlidersHorizontal size={16} /> Filters</button><button className="primary-button" onClick={create}><Plus size={17} /> Create agent</button>
     </PageHeading>
     <div className="agent-page-summary"><div><WandSparkles size={20}/><span><strong>Give every question an expert</strong><small>Each agent owns its knowledge, instructions, playground, and widget.</small></span></div>{agents[0] && <button onClick={() => openAgent(agents[0], "playground")}>Try an agent <ArrowRight size={14}/></button>}</div>
-    <div className="agents-toolbar"><label><Search size={16}/><input aria-label="Search FAQ agents" placeholder="Search agents" value={search} onChange={(event) => setSearch(event.target.value)}/>{search && <button aria-label="Clear agent search" className="clear-agent-search" onClick={() => setSearch("")}><X size={14}/></button>}</label><span aria-live="polite">{agentsPageQuery.isFetching && !useMockData ? "Searching…" : `${totalItems} ${totalItems === 1 ? "agent" : "agents"}`}</span><div className="view-toggle" aria-label="Agent layout"><button aria-label="Grid view" aria-pressed={layout === "grid"} className={layout === "grid" ? "selected" : ""} onClick={() => setLayout("grid")}><LayoutDashboard size={15}/></button><button aria-label="List view" aria-pressed={layout === "list"} className={layout === "list" ? "selected" : ""} onClick={() => setLayout("list")}><Menu size={15}/></button></div></div>
-    {agentsPageQuery.isError && !useMockData && <div className="agents-error"><AlertCircle size={17}/><span>{apiErrorMessage(agentsPageQuery.error)}</span><button onClick={() => agentsPageQuery.refetch()}>Try again</button></div>}
-    <div className={`agents-grid ${layout === "list" ? "list-view" : ""}`} aria-busy={agentsPageQuery.isFetching && !useMockData}>
+    <div className="agents-toolbar"><label><Search size={16}/><input aria-label="Search FAQ agents" placeholder="Search agents" value={search} onChange={(event) => setSearch(event.target.value)}/>{search && <button aria-label="Clear agent search" className="clear-agent-search" onClick={() => setSearch("")}><X size={14}/></button>}</label><span aria-live="polite">{isPending && !useMockData ? "Searching…" : `${totalItems} ${totalItems === 1 ? "agent" : "agents"}`}</span><div className="view-toggle" aria-label="Agent layout"><button aria-label="Grid view" aria-pressed={layout === "grid"} className={layout === "grid" ? "selected" : ""} onClick={() => setLayout("grid")}><LayoutDashboard size={15}/></button><button aria-label="List view" aria-pressed={layout === "list"} className={layout === "list" ? "selected" : ""} onClick={() => setLayout("list")}><Menu size={15}/></button></div></div>
+    <div className={`agents-grid ${layout === "list" ? "list-view" : ""}`} aria-busy={isPending && !useMockData}>
       {showAgentShimmer && Array.from({ length: layout === "grid" ? 6 : 4 }, (_, index) => <article className="agent-card agent-card-shimmer" key={index} aria-hidden="true"><div className="agent-card-top"><span className="shimmer-block shimmer-avatar"/><i className="shimmer-block shimmer-status"/><i className="shimmer-block shimmer-menu"/></div><h2 className="shimmer-block"/><p><span className="shimmer-block"/><span className="shimmer-block short"/></p><div className="agent-meta"><span className="shimmer-block"/><span className="shimmer-block"/></div></article>)}
       {!showAgentShimmer && visibleAgents.map((agent) => <article className={`agent-card ${actionAgentId === agent.id ? "actions-open" : ""}`} key={agent.id} role="button" tabIndex={0} aria-label={`Open ${agent.name}`} onClick={() => selectAgent(agent)} onKeyDown={(event) => { if (event.target !== event.currentTarget || (event.key !== "Enter" && event.key !== " ")) return; event.preventDefault(); selectAgent(agent); }}>
         <div className="agent-card-top"><AgentAvatar agent={agent} large/><Status status={agent.status}/><button className="icon-button small" aria-label={`Actions for ${agent.name}`} aria-haspopup="menu" aria-expanded={actionAgentId === agent.id} aria-controls={`agent-actions-${agent.id}`} onClick={(event) => { event.stopPropagation(); setActionAgentId((current) => current === agent.id ? null : agent.id); }}><MoreHorizontal size={17}/></button>{actionAgentId === agent.id && <div className="agent-actions-menu" id={`agent-actions-${agent.id}`} role="menu" aria-label={`Actions for ${agent.name}`} onClick={(event) => event.stopPropagation()}><button role="menuitem" autoFocus onClick={() => { setActionAgentId(null); openAgent(agent, "overview"); }}><Pencil size={15}/><span><b>Edit agent</b><small>Update details and settings</small></span></button><button role="menuitem" onClick={() => { setActionAgentId(null); openAgent(agent, "knowledge"); }}><FileText size={15}/><span><b>Knowledge sources</b><small>Manage connected documents</small></span></button><button role="menuitem" onClick={() => { setActionAgentId(null); openAgent(agent, "playground"); }}><Play size={15}/><span><b>Test in playground</b><small>Try a question directly</small></span></button><div className="agent-actions-divider"/><button role="menuitem" onClick={() => { setActionAgentId(null); duplicateAgent(agent); }}><Copy size={15}/><span><b>Duplicate agent</b><small>Create an editable draft copy</small></span></button><button className="danger" role="menuitem" onClick={() => { setActionAgentId(null); deleteAgent(agent); }}><Trash2 size={15}/><span><b>Delete agent</b><small>Permanently remove this agent</small></span></button></div>}</div>
@@ -430,8 +469,8 @@ function AgentsPage({ agents, organizationId, search, setSearch, create, openAge
       </article>)}
       {!showAgentShimmer && visibleAgents.length > 0 && page === 1 && !search && <button className="new-agent-card" onClick={create}><span><Plus size={22}/></span><strong>Create a new agent</strong><small>Train an expert on a new topic</small></button>}
     </div>
-    {visibleAgents.length === 0 && !agentsPageQuery.isFetching && <div className="agents-empty"><Search size={22}/><h2>No agents found</h2><p>{search ? `No FAQ agents match “${search}”.` : "Create your first FAQ agent to get started."}</p>{search ? <button className="secondary-button" onClick={() => setSearch("")}>Clear search</button> : <button className="primary-button" onClick={create}><Plus size={16}/> Create agent</button>}</div>}
-    {!showAgentShimmer && totalPages > 1 && <nav className="agents-pagination" aria-label="FAQ agent pages"><span>Showing {firstVisible}–{lastVisible} of {totalItems}</span><div><button aria-label="Previous page" disabled={page === 1} onClick={() => setPage((current) => Math.max(1, current - 1))}><ChevronLeft size={16}/></button>{pageButtons.map((pageNumber) => <button key={pageNumber} aria-label={`Page ${pageNumber}`} aria-current={pageNumber === page ? "page" : undefined} className={pageNumber === page ? "active" : ""} onClick={() => setPage(pageNumber)}>{pageNumber}</button>)}<button aria-label="Next page" disabled={page === totalPages} onClick={() => setPage((current) => Math.min(totalPages, current + 1))}><ChevronRight size={16}/></button></div></nav>}
+    {visibleAgents.length === 0 && !isPending && <div className="agents-empty"><Search size={22}/><h2>No agents found</h2><p>{search ? `No FAQ agents match “${search}”.` : "Create your first FAQ agent to get started."}</p>{search ? <button className="secondary-button" onClick={() => setSearch("")}>Clear search</button> : <button className="primary-button" onClick={create}><Plus size={16}/> Create agent</button>}</div>}
+    {!showAgentShimmer && totalPages > 1 && <nav className="agents-pagination" aria-label="FAQ agent pages"><span>Showing {firstVisible}–{lastVisible} of {totalItems}</span><div><button aria-label="Previous page" disabled={page === 1} onClick={() => goToPage(Math.max(1, page - 1))}><ChevronLeft size={16}/></button>{pageButtons.map((pageNumber) => <button key={pageNumber} aria-label={`Page ${pageNumber}`} aria-current={pageNumber === page ? "page" : undefined} className={pageNumber === page ? "active" : ""} onClick={() => goToPage(pageNumber)}>{pageNumber}</button>)}<button aria-label="Next page" disabled={page === totalPages} onClick={() => goToPage(Math.min(totalPages, page + 1))}><ChevronRight size={16}/></button></div></nav>}
   </>;
 }
 

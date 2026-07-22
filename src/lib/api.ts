@@ -52,6 +52,12 @@ export type PaginatedResult<T> = {
 export type InitialAppData = {
   organizations: OrganizationDto[];
   agentsPage: PaginatedResult<AgentDto>;
+  faqAgentsPage: PaginatedResult<AgentDto>;
+  faqQuery: {
+    search: string;
+    page: number;
+    pageSize: number;
+  };
 };
 
 export class ApiError extends Error {
@@ -110,27 +116,6 @@ export const faqApi = {
     input: Partial<Pick<OrganizationDto, "name" | "description" | "category" | "public_display_name" | "primary_color">> & { version: number },
   ): Promise<OrganizationDto> {
     return request(`/organizations/${organizationId}`, { method: "PATCH", body: JSON.stringify(input) });
-  },
-
-  async listAgents(
-    organizationId: string,
-    options: { search?: string; page?: number; pageSize?: number } = {},
-  ): Promise<PaginatedResult<AgentDto>> {
-    const page = options.page ?? 1;
-    const pageSize = options.pageSize ?? 20;
-    const params = new URLSearchParams({
-      search: options.search ?? "",
-      page: String(page),
-      page_size: String(pageSize),
-    });
-    const payload = await requestEnvelope<AgentDto[]>(`/organizations/${organizationId}/agents?${params}`);
-    return {
-      items: payload.data,
-      page: payload.pagination?.page ?? page,
-      pageSize: payload.pagination?.page_size ?? pageSize,
-      totalItems: payload.pagination?.total_items ?? payload.data.length,
-      totalPages: payload.pagination?.total_pages ?? (payload.data.length ? 1 : 0),
-    };
   },
 
   createAgent(organizationId: string, input: { name: string; description: string }): Promise<AgentDto> {

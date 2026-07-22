@@ -7,8 +7,7 @@ const MUTATING_METHODS = new Set(["POST", "PATCH", "DELETE"]);
 
 function isAllowed(method: string, segments: string[]) {
   if (method === "GET") {
-    return (segments.length === 1 && segments[0] === "organizations")
-      || (segments.length === 3 && segments[0] === "organizations" && segments[2] === "agents");
+    return segments.length === 1 && segments[0] === "organizations";
   }
   if (method === "POST") {
     return (segments.length === 1 && segments[0] === "organizations")

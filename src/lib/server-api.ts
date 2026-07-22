@@ -40,22 +40,52 @@ async function requestBackend<T>(path: string, userAuthorization?: string): Prom
   return response.json() as Promise<ApiEnvelope<T>>;
 }
 
-export async function loadInitialAppData(userAuthorization?: string): Promise<InitialAppData> {
+function paginatedAgents(payload: ApiEnvelope<AgentDto[]>, page: number, pageSize: number): PaginatedResult<AgentDto> {
+  return {
+    items: payload.data,
+    page: payload.pagination?.page ?? page,
+    pageSize: payload.pagination?.page_size ?? pageSize,
+    totalItems: payload.pagination?.total_items ?? payload.data.length,
+    totalPages: payload.pagination?.total_pages ?? (payload.data.length ? 1 : 0),
+  };
+}
+
+export async function loadAgentsPage(
+  organizationId: string,
+  options: { search?: string; page?: number; pageSize?: number } = {},
+  userAuthorization?: string,
+): Promise<PaginatedResult<AgentDto>> {
+  const search = options.search?.trim() ?? "";
+  const page = Math.max(1, options.page ?? 1);
+  const pageSize = Math.min(100, Math.max(1, options.pageSize ?? 20));
+  const params = new URLSearchParams({ search, page: String(page), page_size: String(pageSize) });
+  const payload = await requestBackend<AgentDto[]>(`/organizations/${encodeURIComponent(organizationId)}/agents?${params}`, userAuthorization);
+  return paginatedAgents(payload, page, pageSize);
+}
+
+export async function loadInitialAppData(
+  userAuthorization?: string,
+  faqQuery: { search?: string; page?: number; pageSize?: number } = {},
+): Promise<InitialAppData> {
   const organizationsPayload = await requestBackend<OrganizationDto[]>("/organizations?search=&limit=100", userAuthorization);
   const organizations = organizationsPayload.data;
   const organizationId = organizations[0]?.id;
+  const search = faqQuery.search?.trim() ?? "";
+  const page = Math.max(1, faqQuery.page ?? 1);
+  const pageSize = Math.min(100, Math.max(1, faqQuery.pageSize ?? 6));
   if (!organizationId) {
-    return { organizations, agentsPage: { items: [], page: 1, pageSize: 100, totalItems: 0, totalPages: 0 } };
+    const emptyPage = { items: [], page: 1, pageSize, totalItems: 0, totalPages: 0 };
+    return {
+      organizations,
+      agentsPage: { ...emptyPage, pageSize: 100 },
+      faqAgentsPage: emptyPage,
+      faqQuery: { search, page, pageSize },
+    };
   }
 
-  const agentsPayload = await requestBackend<AgentDto[]>(`/organizations/${organizationId}/agents?search=&page=1&page_size=100`, userAuthorization);
-  const pagination = agentsPayload.pagination;
-  const agentsPage: PaginatedResult<AgentDto> = {
-    items: agentsPayload.data,
-    page: pagination?.page ?? 1,
-    pageSize: pagination?.page_size ?? 100,
-    totalItems: pagination?.total_items ?? agentsPayload.data.length,
-    totalPages: pagination?.total_pages ?? (agentsPayload.data.length ? 1 : 0),
-  };
-  return { organizations, agentsPage };
+  const [agentsPage, faqAgentsPage] = await Promise.all([
+    loadAgentsPage(organizationId, { page: 1, pageSize: 100 }, userAuthorization),
+    loadAgentsPage(organizationId, { search, page, pageSize }, userAuthorization),
+  ]);
+  return { organizations, agentsPage, faqAgentsPage, faqQuery: { search, page, pageSize } };
 }
