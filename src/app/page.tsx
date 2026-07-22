@@ -15,10 +15,19 @@ export default async function Home({ searchParams }: { searchParams: HomeSearchP
   const search = first(params.agent_search).slice(0, 200);
   const requestedPage = Number.parseInt(first(params.agent_page), 10);
   const page = Number.isFinite(requestedPage) && requestedPage > 0 ? requestedPage : 1;
-  const initialView = first(params.view) === "agents" ? "agents" : undefined;
+  const requestedView = first(params.view);
+  const initialView = requestedView === "agents" || requestedView === "documents" ? requestedView : undefined;
+  const documentSearch = first(params.document_search).slice(0, 200);
+  const documentAgentId = first(params.document_agent).slice(0, 50);
+  const requestedDocumentPage = Number.parseInt(first(params.document_page), 10);
+  const documentPage = Number.isFinite(requestedDocumentPage) && requestedDocumentPage > 0 ? requestedDocumentPage : 1;
   const accessToken = (await cookies()).get("querydesk-access-token")?.value;
   const initialData = process.env.NEXT_PUBLIC_USE_MOCK_DATA === "true"
     ? undefined
-    : await loadInitialAppData(accessToken ? `Bearer ${accessToken}` : undefined, { search, page, pageSize: 6 });
+    : await loadInitialAppData(
+      accessToken ? `Bearer ${accessToken}` : undefined,
+      { search, page, pageSize: 6 },
+      { search: documentSearch, agentId: documentAgentId, page: documentPage, pageSize: 12 },
+    );
   return <ProductShell initialData={initialData} initialView={initialView} />;
 }

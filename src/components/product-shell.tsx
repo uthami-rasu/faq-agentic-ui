@@ -13,6 +13,7 @@ import { OrchestratorPage } from "./product/pages/orchestrator-page";
 import { AgentsPage } from "./product/pages/agents-page";
 import { AgentDetailsPage } from "./product/pages/agent-details-page";
 import { SettingsPage } from "./product/pages/settings-page";
+import { DocumentsPage } from "./product/pages/documents-page";
 import { CreateAgentModal } from "./product/dialogs/create-agent-modal";
 import { CreateOrganizationWizard } from "./product/dialogs/create-organization-wizard";
 import { DeleteAgentConfirmation } from "./product/dialogs/delete-agent-confirmation";
@@ -37,15 +38,16 @@ export function ProductShell({ initialData, initialView }: { initialData?: Initi
   return <div className="app-shell">
     <AppSidebar open={sidebarOpen} view={view} selectedOrganization={selectedOrganization} organizations={organizations} organizationAgents={organizationAgents} selectedAgent={selectedAgent} menuOpen={showOrganizationMenu} setMenuOpen={setShowOrganizationMenu} organizationSearch={organizationSearch} setOrganizationSearch={setOrganizationSearch} setSelectedOrganizationId={setSelectedOrganizationId} setOrganizationTab={setOrganizationTab} showOrganizationWizard={() => setShowOrganizationWizard(true)} changeView={changeView} notify={notify}/>
     <main className="main-area">
-      <AppTopbar view={view} organization={selectedOrganization} search={search} setSearch={setSearch} theme={theme} notify={notify} createAgent={() => setShowCreate(true)}/>
+      <AppTopbar view={view} organization={selectedOrganization} search={search} setSearch={setSearch} theme={theme} notifications={initialData?.notifications ?? []} notify={notify} createAgent={() => setShowCreate(true)}/>
       <div className="content-wrap">
         <AnimatePresence mode="wait"><motion.div key={`${view}-${view === "organization" ? organizationTab : view === "agent" ? agentTab : ""}`} initial={{ opacity: 0, y: 7 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: .2 }}>
           {view === "dashboard" && <DashboardPage agents={organizationAgents} organization={selectedOrganization} data={currentDashboard}/>}
           {view === "organization" && <OrganizationPage tab={organizationTab} setTab={setOrganizationTab} organization={selectedOrganization} agents={organizationAgents} notify={notify} updateOrganization={saveOrganization}/>}
           {view === "orchestrator" && <OrchestratorPage agents={organizationAgents} organizationName={selectedOrganization.name} configured={currentDashboard.orchestratorConfigured} notify={notify} onSave={() => setDashboardData((current) => ({ ...current, [selectedOrganization.id]: { ...currentDashboard, orchestratorConfigured: true } }))}/>}
           {view === "agents" && <AgentsPage agents={organizationAgents} organizationId={selectedOrganization.id} search={search} setSearch={setSearch} ssrPage={selectedOrganization.id === ssrOrganizationId ? initialData?.faqAgentsPage : undefined} ssrQuery={selectedOrganization.id === ssrOrganizationId ? initialData?.faqQuery : undefined} create={() => setShowCreate(true)} openAgent={openAgent} duplicateAgent={duplicateAgent} deleteAgent={(agent) => setDeleteConfirmation({ agent, returnToList: false })} notify={notify}/>}
-          {view === "agent" && selectedAgent && <AgentDetailsPage agent={selectedAgent} tab={agentTab} setTab={setAgentTab} notify={notify} onBack={() => changeView("agents")} updateAgent={saveAgent} duplicateAgent={() => duplicateAgent(selectedAgent, true)} deleteAgent={() => setDeleteConfirmation({ agent: selectedAgent, returnToList: true })}/>}
-          {view === "settings" && <SettingsPage notify={notify}/>}
+          {view === "agent" && selectedAgent && <AgentDetailsPage agent={selectedAgent} tab={agentTab} setTab={setAgentTab} models={initialData?.aiModels ?? []} modelCatalogAvailable={initialData?.aiModelsAvailable ?? false} notify={notify} onBack={() => changeView("agents")} updateAgent={saveAgent} duplicateAgent={() => duplicateAgent(selectedAgent, true)} deleteAgent={() => setDeleteConfirmation({ agent: selectedAgent, returnToList: true })}/>}
+          {view === "documents" && <DocumentsPage organizationId={selectedOrganization.id} agents={organizationAgents} ssrPage={selectedOrganization.id === ssrOrganizationId ? initialData?.documentsPage : undefined} query={initialData?.documentQuery ?? { search: "", agentId: "", page: 1, pageSize: 12 }}/>}
+          {view === "settings" && <SettingsPage/>}
         </motion.div></AnimatePresence>
       </div>
     </main>

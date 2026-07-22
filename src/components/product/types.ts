@@ -47,5 +47,6 @@ export const titleMap: Record<ViewKey, string> = {
   orchestrator: "AI Orchestrator",
   agents: "FAQ Agents",
   agent: "Agent details",
+  documents: "Documents",
   settings: "Settings",
 };

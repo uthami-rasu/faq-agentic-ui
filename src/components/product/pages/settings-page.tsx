@@ -1,15 +1,16 @@
 "use client";
 
-import { ArrowUpRight, CheckCircle2, HelpCircle, LayoutDashboard, Moon, Save, Settings, Sun } from "lucide-react";
+import { CheckCircle2, LockKeyhole, Moon, Server, Sun } from "lucide-react";
 import { setTheme, useAppDispatch, useAppSelector } from "@/store";
-import type { Notify } from "../types";
 import { PageHeading } from "../shared";
 
-export function SettingsPage({ notify }: { notify: Notify }) {
+export function SettingsPage() {
   const dispatch = useAppDispatch();
   const theme = useAppSelector((state) => state.ui.theme);
-  return <>
-    <PageHeading title="Settings" description="Personalize how QueryDesk looks and behaves for you."><button className="primary-button" onClick={() => notify("Application settings saved")}><Save size={16}/> Save preferences</button></PageHeading>
-    <div className="settings-page-layout"><aside className="settings-nav panel"><button className="active"><Settings size={16}/> Overview</button><button><LayoutDashboard size={16}/> Appearance</button><button><HelpCircle size={16}/> About</button></aside><section className="panel organization-form"><div className="panel-title"><div><h2>Preference overview</h2><p>These settings apply only to your account.</p></div></div><div className="settings-group"><div className="settings-group-title"><Moon size={17}/><div><b>Theme</b><small>Choose how QueryDesk appears on this device.</small></div></div><div className="theme-cards"><button className={theme === "light" ? "selected" : ""} onClick={() => dispatch(setTheme("light"))}><Sun size={19}/><span>Light</span><CheckCircle2 size={15}/></button><button className={theme === "dark" ? "selected" : ""} onClick={() => dispatch(setTheme("dark"))}><Moon size={19}/><span>Dark</span><CheckCircle2 size={15}/></button><button onClick={() => notify("System theme will be available in the next settings update")}><Settings size={19}/><span>System</span><CheckCircle2 size={15}/></button></div></div><div className="form-divider"/><label className="preference-row"><span><b>Compact sidebar</b><small>Use a narrower navigation when working on large screens.</small></span><span className="switch"><input type="checkbox"/><i/></span></label><label className="preference-row"><span><b>Comfortable density</b><small>Use more spacing in lists, tables, and forms.</small></span><span className="switch"><input type="checkbox" defaultChecked/><i/></span></label><div className="form-divider"/><div className="about-row"><span><b>QueryDesk AI</b><small>Version 1.0.0 · July 2026</small></span><button className="secondary-button" onClick={() => notify("Documentation is coming soon")}>Documentation <ArrowUpRight size={14}/></button></div></section></div>
+  return <><PageHeading title="Settings" description="Essential application preferences and data-access information."/>
+    <div className="settings-essential-grid">
+      <section className="panel settings-essential-panel"><div className="panel-title"><div><h2>Appearance</h2><p>Choose the theme used on this device. Changes apply immediately.</p></div><Moon size={18}/></div><div className="theme-cards"><button className={theme === "light" ? "selected" : ""} onClick={() => dispatch(setTheme("light"))}><Sun size={20}/><span>Light</span><CheckCircle2 size={16}/></button><button className={theme === "dark" ? "selected" : ""} onClick={() => dispatch(setTheme("dark"))}><Moon size={20}/><span>Dark</span><CheckCircle2 size={16}/></button></div></section>
+      <section className="panel settings-essential-panel"><div className="panel-title"><div><h2>Server-side data access</h2><p>How QueryDesk communicates with your application and AI services.</p></div><LockKeyhole size={18}/></div><div className="server-data-flow"><span><Server size={19}/></span><div><b>Private backend connection</b><p>Organizations, agents, and the AI model catalog are requested by the Next.js server. The private AI service URL and backend credentials are never sent to the browser.</p></div></div><small className="settings-note">Theme preference remains on this device because it is a local display choice, not application data.</small></section>
+    </div>
   </>;
 }

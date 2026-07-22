@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { AgentDto, InitialAppData, OrganizationDto, PaginatedResult, PaginationDto } from "@/lib/api";
+import type { AgentDto, AiModelDto, DocumentDto, InitialAppData, NotificationDto, OrganizationDto, PaginatedResult, PaginationDto } from "@/lib/api";
 
 const API_BASE_URL = (process.env.API_BASE_URL ?? "http://localhost:8080/api/v1").replace(/\/$/, "");
 
@@ -20,13 +20,15 @@ function authorizationHeader(userAuthorization?: string): string | undefined {
   return undefined;
 }
 
-async function requestBackend<T>(path: string, userAuthorization?: string): Promise<ApiEnvelope<T>> {
+async function requestBackend<T>(path: string, userAuthorization?: string, init: RequestInit = {}): Promise<ApiEnvelope<T>> {
   const authorization = authorizationHeader(userAuthorization);
+  const headers = new Headers(init.headers);
+  headers.set("Accept", "application/json");
+  if (init.body) headers.set("Content-Type", "application/json");
+  if (authorization) headers.set("Authorization", authorization);
   const response = await fetch(`${API_BASE_URL}${path}`, {
-    headers: {
-      Accept: "application/json",
-      ...(authorization ? { Authorization: authorization } : {}),
-    },
+    ...init,
+    headers,
     cache: "no-store",
   });
 
@@ -37,7 +39,20 @@ async function requestBackend<T>(path: string, userAuthorization?: string): Prom
     throw error;
   }
 
+  if (response.status === 204) return { data: undefined as T };
   return response.json() as Promise<ApiEnvelope<T>>;
+}
+
+export async function loadOrganizations(userAuthorization?: string): Promise<OrganizationDto[]> {
+  return (await requestBackend<OrganizationDto[]>("/organizations?search=&limit=100", userAuthorization)).data;
+}
+
+export async function loadAiModels(userAuthorization?: string): Promise<AiModelDto[]> {
+  return (await requestBackend<AiModelDto[]>("/ai-models?capability=faq", userAuthorization)).data;
+}
+
+export async function loadNotifications(userAuthorization?: string): Promise<NotificationDto[]> {
+  return (await requestBackend<NotificationDto[]>("/notifications?limit=20", userAuthorization)).data;
 }
 
 function paginatedAgents(payload: ApiEnvelope<AgentDto[]>, page: number, pageSize: number): PaginatedResult<AgentDto> {
@@ -63,29 +78,125 @@ export async function loadAgentsPage(
   return paginatedAgents(payload, page, pageSize);
 }
 
+export async function loadDocumentsPage(
+  organizationId: string,
+  options: { search?: string; agentId?: string; page?: number; pageSize?: number } = {},
+  userAuthorization?: string,
+): Promise<PaginatedResult<DocumentDto>> {
+  const search = options.search?.trim() ?? "";
+  const page = Math.max(1, options.page ?? 1);
+  const pageSize = Math.min(100, Math.max(1, options.pageSize ?? 20));
+  const params = new URLSearchParams({ search, page: String(page), page_size: String(pageSize) });
+  if (options.agentId) params.set("agent_id", options.agentId);
+  const payload = await requestBackend<DocumentDto[]>(`/organizations/${encodeURIComponent(organizationId)}/documents?${params}`, userAuthorization);
+  return {
+    items: payload.data,
+    page: payload.pagination?.page ?? page,
+    pageSize: payload.pagination?.page_size ?? pageSize,
+    totalItems: payload.pagination?.total_items ?? payload.data.length,
+    totalPages: payload.pagination?.total_pages ?? (payload.data.length ? 1 : 0),
+  };
+}
+
 export async function loadInitialAppData(
   userAuthorization?: string,
   faqQuery: { search?: string; page?: number; pageSize?: number } = {},
+  documentQuery: { search?: string; agentId?: string; page?: number; pageSize?: number } = {},
 ): Promise<InitialAppData> {
-  const organizationsPayload = await requestBackend<OrganizationDto[]>("/organizations?search=&limit=100", userAuthorization);
-  const organizations = organizationsPayload.data;
+  const modelsPromise = loadAiModels(userAuthorization)
+    .then((models) => ({ models, available: true }))
+    .catch(() => ({ models: [] as AiModelDto[], available: false }));
+  const notificationsPromise = loadNotifications(userAuthorization).catch(() => [] as NotificationDto[]);
+  const organizations = await loadOrganizations(userAuthorization);
   const organizationId = organizations[0]?.id;
   const search = faqQuery.search?.trim() ?? "";
   const page = Math.max(1, faqQuery.page ?? 1);
   const pageSize = Math.min(100, Math.max(1, faqQuery.pageSize ?? 6));
+  const documentSearch = documentQuery.search?.trim() ?? "";
+  const documentAgentId = documentQuery.agentId ?? "";
+  const documentPage = Math.max(1, documentQuery.page ?? 1);
+  const documentPageSize = Math.min(100, Math.max(1, documentQuery.pageSize ?? 12));
   if (!organizationId) {
     const emptyPage = { items: [], page: 1, pageSize, totalItems: 0, totalPages: 0 };
+    const [modelCatalog, notifications] = await Promise.all([modelsPromise, notificationsPromise]);
     return {
       organizations,
       agentsPage: { ...emptyPage, pageSize: 100 },
       faqAgentsPage: emptyPage,
+      documentsPage: { ...emptyPage, pageSize: documentPageSize },
+      notifications,
+      aiModels: modelCatalog.models,
+      aiModelsAvailable: modelCatalog.available,
       faqQuery: { search, page, pageSize },
+      documentQuery: { search: documentSearch, agentId: documentAgentId, page: documentPage, pageSize: documentPageSize },
     };
   }
 
-  const [agentsPage, faqAgentsPage] = await Promise.all([
+  const [agentsPage, faqAgentsPage, documentsPage, modelCatalog, notifications] = await Promise.all([
     loadAgentsPage(organizationId, { page: 1, pageSize: 100 }, userAuthorization),
     loadAgentsPage(organizationId, { search, page, pageSize }, userAuthorization),
+    loadDocumentsPage(organizationId, { search: documentSearch, agentId: documentAgentId, page: documentPage, pageSize: documentPageSize }, userAuthorization),
+    modelsPromise,
+    notificationsPromise,
   ]);
-  return { organizations, agentsPage, faqAgentsPage, faqQuery: { search, page, pageSize } };
+  return {
+    organizations,
+    agentsPage,
+    faqAgentsPage,
+    documentsPage,
+    notifications,
+    aiModels: modelCatalog.models,
+    aiModelsAvailable: modelCatalog.available,
+    faqQuery: { search, page, pageSize },
+    documentQuery: { search: documentSearch, agentId: documentAgentId, page: documentPage, pageSize: documentPageSize },
+  };
+}
+
+export async function createOrganization(
+  input: { name: string; description: string; category: string },
+  userAuthorization?: string,
+): Promise<OrganizationDto> {
+  return (await requestBackend<OrganizationDto>("/organizations", userAuthorization, { method: "POST", body: JSON.stringify(input) })).data;
+}
+
+export async function updateOrganization(
+  organizationId: string,
+  input: Partial<Pick<OrganizationDto, "name" | "description" | "category" | "public_display_name" | "primary_color">> & { version: number },
+  userAuthorization?: string,
+): Promise<OrganizationDto> {
+  return (await requestBackend<OrganizationDto>(`/organizations/${encodeURIComponent(organizationId)}`, userAuthorization, { method: "PATCH", body: JSON.stringify(input) })).data;
+}
+
+export async function createAgent(
+  organizationId: string,
+  input: { name: string; description: string },
+  userAuthorization?: string,
+): Promise<AgentDto> {
+  return (await requestBackend<AgentDto>(`/organizations/${encodeURIComponent(organizationId)}/agents`, userAuthorization, { method: "POST", body: JSON.stringify(input) })).data;
+}
+
+export async function updateAgent(
+  organizationId: string,
+  agentId: string,
+  input: Partial<Pick<AgentDto, "name" | "description" | "status" | "enabled">> & { version: number },
+  userAuthorization?: string,
+): Promise<AgentDto> {
+  return (await requestBackend<AgentDto>(`/organizations/${encodeURIComponent(organizationId)}/agents/${encodeURIComponent(agentId)}`, userAuthorization, { method: "PATCH", body: JSON.stringify(input) })).data;
+}
+
+export async function duplicateAgent(
+  organizationId: string,
+  agentId: string,
+  name?: string,
+  userAuthorization?: string,
+): Promise<AgentDto> {
+  return (await requestBackend<AgentDto>(`/organizations/${encodeURIComponent(organizationId)}/agents/${encodeURIComponent(agentId)}/duplicate`, userAuthorization, { method: "POST", body: JSON.stringify(name ? { name } : {}) })).data;
+}
+
+export async function deleteAgent(organizationId: string, agentId: string, userAuthorization?: string): Promise<void> {
+  await requestBackend<void>(`/organizations/${encodeURIComponent(organizationId)}/agents/${encodeURIComponent(agentId)}`, userAuthorization, { method: "DELETE" });
+}
+
+export async function markNotificationRead(notificationId: string, read: boolean, userAuthorization?: string): Promise<NotificationDto> {
+  return (await requestBackend<NotificationDto>(`/notifications/${encodeURIComponent(notificationId)}`, userAuthorization, { method: "PATCH", body: JSON.stringify({ read }) })).data;
 }

@@ -3,9 +3,17 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { loadAgentsPageAction } from "@/app/actions";
+import {
+  createAgentAction,
+  createOrganizationAction,
+  deleteAgentAction,
+  duplicateAgentAction,
+  loadAgentsPageAction,
+  loadOrganizationsAction,
+  updateAgentAction,
+  updateOrganizationAction,
+} from "@/app/actions";
 import type { InitialAppData } from "@/lib/api";
-import { faqApi } from "@/lib/api";
 import { setTheme, setView, useAppDispatch, useAppSelector, type ViewKey } from "@/store";
 import { initialAgents, initialDashboardData, initialOrganizations, useMockData } from "./data";
 import type { Agent, AgentTab, DashboardBackendData, Organization, OrganizationTab } from "./types";
@@ -45,7 +53,7 @@ export function useProductController(initialData?: InitialAppData, initialView?:
   const [deletingAgent, setDeletingAgent] = useState(false);
 
   const organizationsQuery = useQuery({
-    queryKey: ["organizations"], queryFn: () => faqApi.listOrganizations(), enabled: !useMockData,
+    queryKey: ["organizations"], queryFn: () => loadOrganizationsAction(), enabled: !useMockData,
     initialData: initialData?.organizations, retry: 1, staleTime: Number.POSITIVE_INFINITY,
     refetchOnMount: false, refetchOnWindowFocus: false,
   });
@@ -104,7 +112,7 @@ export function useProductController(initialData?: InitialAppData, initialView?:
     if (!selectedOrganization) return;
     const previous = selectedOrganization;
     setOrganizations((current) => current.map((organization) => organization.id === previous.id ? { ...organization, ...updates } : organization));
-    void faqApi.updateOrganization(previous.id, { ...(updates.name !== undefined ? { name: updates.name } : {}), ...(updates.description !== undefined ? { description: updates.description } : {}), ...(updates.category !== undefined ? { category: updates.category } : {}), version: previous.version })
+    void updateOrganizationAction(previous.id, { ...(updates.name !== undefined ? { name: updates.name } : {}), ...(updates.description !== undefined ? { description: updates.description } : {}), ...(updates.category !== undefined ? { category: updates.category } : {}), version: previous.version })
       .then((saved) => { setOrganizations((current) => current.map((organization) => organization.id === saved.id ? mapOrganization(saved) : organization)); notify("Organization profile saved"); })
       .catch((error) => { setOrganizations((current) => current.map((organization) => organization.id === previous.id ? previous : organization)); notify(apiErrorMessage(error)); });
   };
@@ -112,12 +120,12 @@ export function useProductController(initialData?: InitialAppData, initialView?:
     if (!selectedAgent) return;
     const previous = selectedAgent;
     setAgents((current) => current.map((agent) => agent.id === previous.id ? { ...agent, ...updates, updated: "Saving…" } : agent));
-    void faqApi.updateAgent(previous.organizationId, previous.id, { ...(updates.name !== undefined ? { name: updates.name } : {}), ...(updates.description !== undefined ? { description: updates.description } : {}), ...(updates.status !== undefined ? { status: updates.status === "Live" ? "ACTIVE" as const : "DRAFT" as const, enabled: updates.status === "Live" } : {}), version: previous.version })
+    void updateAgentAction(previous.organizationId, previous.id, { ...(updates.name !== undefined ? { name: updates.name } : {}), ...(updates.description !== undefined ? { description: updates.description } : {}), ...(updates.status !== undefined ? { status: updates.status === "Live" ? "ACTIVE" as const : "DRAFT" as const, enabled: updates.status === "Live" } : {}), version: previous.version })
       .then((saved) => { setAgents((current) => current.map((agent) => agent.id === saved.id ? mapAgent(saved) : agent)); notify(`${saved.name} updated`); })
       .catch((error) => { setAgents((current) => current.map((agent) => agent.id === previous.id ? previous : agent)); notify(apiErrorMessage(error)); });
   };
   const duplicateAgent = (source: Agent, openCreated = false) => {
-    void faqApi.duplicateAgent(source.organizationId, source.id).then((created) => {
+    void duplicateAgentAction(source.organizationId, source.id).then((created) => {
       const mapped = mapAgent(created); setAgents((current) => [mapped, ...current]);
       if (openCreated) setSelectedAgentId(mapped.id);
       router.refresh(); notify(`${mapped.name} created as a draft`);
@@ -127,7 +135,7 @@ export function useProductController(initialData?: InitialAppData, initialView?:
     if (!deleteConfirmation || deletingAgent) return;
     const { agent: target, returnToList } = deleteConfirmation;
     setDeletingAgent(true);
-    void faqApi.deleteAgent(target.organizationId, target.id).then(() => {
+    void deleteAgentAction(target.organizationId, target.id).then(() => {
       setAgents((current) => current.filter((agent) => agent.id !== target.id));
       if (selectedAgentId === target.id) setSelectedAgentId("");
       if (returnToList) changeView("agents");
@@ -137,7 +145,7 @@ export function useProductController(initialData?: InitialAppData, initialView?:
   const createAgent = async (values: AgentForm) => {
     if (!selectedOrganization) return;
     try {
-      const created = mapAgent(await faqApi.createAgent(selectedOrganization.id, values));
+      const created = mapAgent(await createAgentAction(selectedOrganization.id, values));
       setAgents((current) => [created, ...current]); setSelectedAgentId(created.id); setAgentTab("overview"); setShowCreate(false);
       setDashboardData((current) => ({ ...current, [selectedOrganization.id]: { ...(current[selectedOrganization.id] || emptyDashboardData), activity: [{ id: Date.now(), label: `${values.name} created`, context: "FAQ Agent", time: "Just now", kind: "agent" }, ...(current[selectedOrganization.id]?.activity || [])] } }));
       notify(`${values.name} created as a draft`); changeView("agent"); router.refresh();
@@ -145,9 +153,9 @@ export function useProductController(initialData?: InitialAppData, initialView?:
   };
   const createOrganization = async (organization: Omit<Organization, "id" | "version">, agentDraft: { name: string; description: string; documentAdded: boolean }) => {
     try {
-      const created = mapOrganization(await faqApi.createOrganization({ name: organization.name, description: organization.description, category: organization.category }));
+      const created = mapOrganization(await createOrganizationAction({ name: organization.name, description: organization.description, category: organization.category }));
       setOrganizations((current) => [...current, created]); setSelectedOrganizationId(created.id);
-      if (agentDraft.name) { const createdAgent = mapAgent(await faqApi.createAgent(created.id, agentDraft)); setAgents((current) => [createdAgent, ...current]); setSelectedAgentId(createdAgent.id); }
+      if (agentDraft.name) { const createdAgent = mapAgent(await createAgentAction(created.id, agentDraft)); setAgents((current) => [createdAgent, ...current]); setSelectedAgentId(createdAgent.id); }
       setDashboardData((current) => ({ ...current, [created.id]: { ...emptyDashboardData, activity: [{ id: Date.now(), label: `${agentDraft.name} created`, context: "FAQ Agent", time: "Just now", kind: "agent" }] } }));
       setShowOrganizationWizard(false); changeView("dashboard"); notify(`${created.name} created; unavailable setup steps were skipped`);
     } catch (error) { notify(apiErrorMessage(error)); }

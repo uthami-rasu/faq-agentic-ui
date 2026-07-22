@@ -1,16 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowRight, Check, CheckCircle2, ChevronDown, ChevronRight, Copy, Database, FileText, MoreHorizontal, Pencil, RotateCcw, Save, Sparkles, Trash2, Zap } from "lucide-react";
+import { ArrowRight, CheckCircle2, ChevronRight, Copy, Database, FileText, MoreHorizontal, Pencil, RotateCcw, Save, Sparkles, Trash2 } from "lucide-react";
+import type { AiModelDto } from "@/lib/api";
 import type { Agent, AgentTab, Notify } from "../types";
 import { AgentAvatar, Status } from "../shared";
 import { KnowledgePage } from "./knowledge-page";
 import { PlaygroundPage } from "./playground-page";
 import { WidgetsPage } from "./widgets-page";
+import { AgentAIConfiguration } from "./agent-ai-configuration";
 
-type Props = { agent: Agent; tab: AgentTab; setTab: (tab: AgentTab) => void; notify: Notify; updateAgent: (updates: Partial<Agent>) => void; duplicateAgent: () => void; deleteAgent: () => void; onBack: () => void };
+type Props = { agent: Agent; tab: AgentTab; setTab: (tab: AgentTab) => void; models: AiModelDto[]; modelCatalogAvailable: boolean; notify: Notify; updateAgent: (updates: Partial<Agent>) => void; duplicateAgent: () => void; deleteAgent: () => void; onBack: () => void };
 
-export function AgentDetailsPage({ agent, tab, setTab, notify, updateAgent, duplicateAgent, deleteAgent, onBack }: Props) {
+export function AgentDetailsPage({ agent, tab, setTab, models, modelCatalogAvailable, notify, updateAgent, duplicateAgent, deleteAgent, onBack }: Props) {
   const tabs: { key: AgentTab; label: string }[] = [
     { key: "overview", label: "Overview" }, { key: "knowledge", label: "Knowledge" }, { key: "ai", label: "AI Configuration" },
     { key: "retrieval", label: "Retrieval" }, { key: "prompt", label: "Prompt" }, { key: "playground", label: "Playground" }, { key: "widget", label: "Widget" },
@@ -24,17 +26,12 @@ export function AgentDetailsPage({ agent, tab, setTab, notify, updateAgent, dupl
     <div className="context-tabs agent-tabs">{tabs.map(({ key, label }) => <button key={key} className={tab === key ? "active" : ""} onClick={() => setTab(key)}>{label}{key === "knowledge" && <em>{agent.docs}</em>}</button>)}</div>
     {tab === "overview" && <div className="agent-settings-layout"><section className="panel agent-form-panel"><div className="panel-title"><div><h2>Agent overview</h2><p>Give this agent a clear identity and responsibility.</p></div></div><label className="field"><span>Agent name</span><input value={draftName} onChange={(event) => setDraftName(event.target.value)}/></label><label className="field"><span>Description</span><textarea rows={4} value={draftDescription} onChange={(event) => setDraftDescription(event.target.value)}/></label><div className="form-actions"><button className="primary-button" onClick={() => updateAgent({ name: draftName.trim() || agent.name, description: draftDescription })}><Save size={15}/> Save changes</button></div></section><aside className="panel agent-side-panel"><div className="panel-title"><div><h2>Agent summary</h2><p>Backend-owned configuration details.</p></div></div><div className="agent-summary-list"><span><FileText size={16}/><div><small>Knowledge sources</small><b>{agent.docs} documents</b></div></span><span><CheckCircle2 size={16}/><div><small>Status</small><b>{agent.status === "Live" ? "Active" : "Draft"}</b></div></span><span><Pencil size={16}/><div><small>Last updated</small><b>{agent.updated}</b></div></span></div><div className="form-divider"/><button className="secondary-button full-button" onClick={duplicateAgent}><Copy size={15}/> Duplicate agent</button><button className="danger-button" onClick={deleteAgent}><Trash2 size={15}/> Delete agent</button></aside></div>}
     {tab === "knowledge" && <KnowledgePage search="" notify={notify} embedded agentName={agent.name}/>} 
-    {tab === "ai" && <AgentAIConfiguration notify={notify}/>} 
+    {tab === "ai" && <AgentAIConfiguration models={models} catalogAvailable={modelCatalogAvailable}/>}
     {tab === "retrieval" && <AgentRetrieval notify={notify}/>} 
     {tab === "prompt" && <section className="panel prompt-panel"><div className="panel-title"><div><h2>System prompt</h2><p>Set the role, boundaries, and response style for {agent.name}.</p></div><button className="secondary-button" onClick={() => setPrompt("You are a helpful FAQ agent. Answer only from the provided knowledge.")}><RotateCcw size={14}/> Reset default</button></div><label className="field"><span>Instructions</span><textarea rows={13} value={prompt} onChange={(event) => setPrompt(event.target.value)}/><small>{prompt.length} / 4,000 characters</small></label><div className="prompt-guidance"><Sparkles size={17}/><div><b>Prompt guidance</b><p>Describe the agent&apos;s role, tone, limitations, and what it should do when the knowledge does not contain an answer.</p></div></div><div className="form-actions"><button className="primary-button" onClick={() => notify("System prompt saved")}><Save size={15}/> Save prompt</button></div></section>}
     {tab === "playground" && <PlaygroundPage notify={notify} embedded agentName={agent.name}/>} 
     {tab === "widget" && <WidgetsPage notify={notify} embedded agentMode agentName={agent.name}/>} 
   </>;
-}
-
-function AgentAIConfiguration({ notify }: { notify: Notify }) {
-  const [temperature, setTemperature] = useState(.3);
-  return <div className="config-page-grid"><section className="panel config-panel"><div className="panel-title"><div><h2>AI configuration</h2><p>Choose how the model generates responses.</p></div></div><label className="field"><span>Model</span><button className="select-field config-select"><span className="mini-agent"><Sparkles size={14}/></span><span><b>GPT-4.1 mini</b><small>Fast, capable, and cost effective</small></span><ChevronDown size={15}/></button></label><div className="range-field"><div><span>Temperature</span><b>{temperature.toFixed(1)}</b></div><input type="range" min="0" max="1" step="0.1" value={temperature} onChange={(event) => setTemperature(Number(event.target.value))}/><div className="range-labels"><span>Precise</span><span>Creative</span></div><p>Lower values keep answers consistent and grounded in your knowledge.</p></div><label className="field"><span>Maximum response tokens</span><input type="number" defaultValue="800" min="100" max="4000"/><small>Recommended: 500–1,000 tokens for concise support answers.</small></label><div className="form-actions"><button className="primary-button" onClick={() => notify("AI configuration saved")}><Save size={15}/> Save configuration</button></div></section><aside className="panel recommendations-panel"><Zap size={20}/><h3>Recommended for FAQ agents</h3><p>This setup balances answer quality, speed, and cost for most customer-facing knowledge agents.</p><ul><li><Check size={13}/> Fast response generation</li><li><Check size={13}/> Reliable instruction following</li><li><Check size={13}/> Low answer variance</li></ul></aside></div>;
 }
 
 function AgentRetrieval({ notify }: { notify: Notify }) {
