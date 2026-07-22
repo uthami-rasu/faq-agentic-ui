@@ -51,15 +51,15 @@ export type AiModelDto = {
 export type DocumentDto = {
   id: string;
   organization_id: string;
-  agent_id: string;
-  agent_name: string;
   file_name: string;
+  normalized_file_name: string;
   mime_type: string;
   size_bytes: number;
   status: "UPLOADING" | "UPLOADED" | "PROCESSING" | "READY" | "FAILED";
   chunk_count: number | null;
   failure_code: string | null;
   failure_message: string | null;
+  assigned_agents: Array<{ id: string; name: string }>;
   created_at: string;
   updated_at: string;
 };

@@ -24,7 +24,7 @@ async function requestBackend<T>(path: string, userAuthorization?: string, init:
   const authorization = authorizationHeader(userAuthorization);
   const headers = new Headers(init.headers);
   headers.set("Accept", "application/json");
-  if (init.body) headers.set("Content-Type", "application/json");
+  if (init.body && !(init.body instanceof FormData)) headers.set("Content-Type", "application/json");
   if (authorization) headers.set("Authorization", authorization);
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
@@ -98,6 +98,18 @@ export async function loadDocumentsPage(
   };
 }
 
+export async function uploadDocuments(
+  organizationId: string,
+  formData: FormData,
+  userAuthorization?: string,
+): Promise<DocumentDto[]> {
+  return (await requestBackend<DocumentDto[]>(
+    `/organizations/${encodeURIComponent(organizationId)}/documents`,
+    userAuthorization,
+    { method: "POST", body: formData },
+  )).data;
+}
+
 export async function loadInitialAppData(
   userAuthorization?: string,
   faqQuery: { search?: string; page?: number; pageSize?: number } = {},
@@ -159,6 +171,15 @@ export async function createOrganization(
   return (await requestBackend<OrganizationDto>("/organizations", userAuthorization, { method: "POST", body: JSON.stringify(input) })).data;
 }
 
+export async function configureOrchestrator(
+  organizationId: string,
+  input: { welcome_message: string; system_prompt: string },
+  userAuthorization?: string,
+): Promise<void> {
+  await requestBackend<unknown>(`/organizations/${encodeURIComponent(organizationId)}/orchestrator`,
+    userAuthorization, { method: "PUT", body: JSON.stringify(input) });
+}
+
 export async function updateOrganization(
   organizationId: string,
   input: Partial<Pick<OrganizationDto, "name" | "description" | "category" | "public_display_name" | "primary_color">> & { version: number },
@@ -169,10 +190,23 @@ export async function updateOrganization(
 
 export async function createAgent(
   organizationId: string,
-  input: { name: string; description: string },
+  input: { name: string; description: string; document_ids?: string[] },
   userAuthorization?: string,
 ): Promise<AgentDto> {
   return (await requestBackend<AgentDto>(`/organizations/${encodeURIComponent(organizationId)}/agents`, userAuthorization, { method: "POST", body: JSON.stringify(input) })).data;
+}
+
+export async function replaceAgentDocuments(
+  organizationId: string,
+  agentId: string,
+  documentIds: string[],
+  userAuthorization?: string,
+): Promise<void> {
+  await requestBackend<void>(
+    `/organizations/${encodeURIComponent(organizationId)}/agents/${encodeURIComponent(agentId)}/documents`,
+    userAuthorization,
+    { method: "PUT", body: JSON.stringify({ document_ids: documentIds }) },
+  );
 }
 
 export async function updateAgent(

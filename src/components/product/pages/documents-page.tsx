@@ -7,13 +7,16 @@ import { AlertCircle, Check, ChevronLeft, ChevronRight, FileClock, FileText, Fil
 import { loadDocumentsPageAction } from "@/app/actions";
 import type { DocumentDto, InitialAppData, PaginatedResult } from "@/lib/api";
 import type { Agent } from "../types";
+import type { Notify } from "../types";
 import { PageHeading } from "../shared";
+import { DocumentUploadPanel } from "../documents/document-upload-panel";
 
 type Props = {
   organizationId: string;
   agents: Agent[];
   ssrPage?: PaginatedResult<DocumentDto>;
   query: InitialAppData["documentQuery"];
+  notify: Notify;
 };
 
 function formatBytes(bytes: number) {
@@ -28,7 +31,7 @@ function statusLabel(status: DocumentDto["status"]) {
   return <em className="processing"><LoaderCircle className="spin" size={11}/> Processing</em>;
 }
 
-export function DocumentsPage({ organizationId, agents, ssrPage, query }: Props) {
+export function DocumentsPage({ organizationId, agents, ssrPage, query, notify }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const [search, setSearch] = useState(query.search);
@@ -58,10 +61,11 @@ export function DocumentsPage({ organizationId, agents, ssrPage, query }: Props)
 
   return <>
     <PageHeading title="Documents" description="View processing status and manage knowledge across your FAQ agents."/>
+    <DocumentUploadPanel organizationId={organizationId} agentId={query.agentId || undefined} notify={notify} compact/>
     <section className="documents-overview panel"><div><span><Files size={20}/></span><div><b>{page?.totalItems ?? 0} knowledge documents</b><p>{query.agentId ? `Filtered to ${agents.find((agent) => agent.id === query.agentId)?.name ?? "selected agent"}` : "Across all FAQ agents in this organization"}</p></div></div><span className="documents-live"><i/> Processing updates enabled</span></section>
     <section className="panel documents-panel">
       <header className="documents-toolbar"><form onSubmit={submitSearch}><Search size={17}/><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search documents…"/><button type="submit">Search</button></form><label><span>FAQ agent</span><select value={query.agentId} onChange={(event) => navigate({ agentId: event.target.value, page: 1 })}><option value="">All agents</option>{agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.name}</option>)}</select></label></header>
-      {pending || documentsQuery.isLoading ? <DocumentsShimmer/> : documentsQuery.isError ? <div className="documents-state"><AlertCircle size={25}/><h2>Documents couldn’t be loaded</h2><p>The backend is temporarily unavailable. Please try again.</p><button className="secondary-button" onClick={() => documentsQuery.refetch()}>Retry</button></div> : page?.items.length ? <div className="documents-table"><div className="documents-head"><span>Document</span><span>FAQ agent</span><span>Chunks</span><span>Updated</span><span>Status</span></div>{page.items.map((document) => <div className="documents-row" key={document.id}><span className="document-file"><i><FileText size={17}/></i><span><b>{document.file_name}</b><small>{formatBytes(document.size_bytes)} · {document.mime_type}</small></span></span><span>{document.agent_name}</span><span>{document.chunk_count ?? "—"}</span><time>{new Date(document.updated_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}</time><span>{statusLabel(document.status)}</span></div>)}</div> : <div className="documents-state"><FileClock size={28}/><h2>No documents found</h2><p>{query.search || query.agentId ? "Try a different search or FAQ agent." : "Documents uploaded to your FAQ agents will appear here."}</p>{(query.search || query.agentId) && <button className="secondary-button" onClick={() => { setSearch(""); navigate({ search: "", agentId: "", page: 1 }); }}>Clear filters</button>}</div>}
+      {pending || documentsQuery.isLoading ? <DocumentsShimmer/> : documentsQuery.isError ? <div className="documents-state"><AlertCircle size={25}/><h2>Documents couldn’t be loaded</h2><p>The backend is temporarily unavailable. Please try again.</p><button className="secondary-button" onClick={() => documentsQuery.refetch()}>Retry</button></div> : page?.items.length ? <div className="documents-table"><div className="documents-head"><span>Document</span><span>FAQ agents</span><span>Chunks</span><span>Updated</span><span>Status</span></div>{page.items.map((document) => <div className="documents-row" key={document.id}><span className="document-file"><i><FileText size={17}/></i><span><b>{document.file_name}</b><small>{formatBytes(document.size_bytes)} · {document.mime_type}</small></span></span><span>{document.assigned_agents.length ? document.assigned_agents.map((agent) => agent.name).join(", ") : "Organization library"}</span><span>{document.chunk_count ?? "—"}</span><time>{new Date(document.updated_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}</time><span>{statusLabel(document.status)}</span></div>)}</div> : <div className="documents-state"><FileClock size={28}/><h2>No documents found</h2><p>{query.search || query.agentId ? "Try a different search or FAQ agent." : "Documents uploaded to this organization will appear here."}</p>{(query.search || query.agentId) && <button className="secondary-button" onClick={() => { setSearch(""); navigate({ search: "", agentId: "", page: 1 }); }}>Clear filters</button>}</div>}
       {page && page.totalPages > 1 && <footer className="documents-pagination"><span>Page {page.page} of {page.totalPages} · {page.totalItems} documents</span><div><button disabled={page.page <= 1 || pending} onClick={() => navigate({ page: page.page - 1 })}><ChevronLeft size={16}/></button><button disabled={page.page >= page.totalPages || pending} onClick={() => navigate({ page: page.page + 1 })}><ChevronRight size={16}/></button></div></footer>}
     </section>
   </>;

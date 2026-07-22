@@ -6,6 +6,7 @@ import type { AgentDto, DocumentDto, NotificationDto, OrganizationDto, Paginated
 import {
   createAgent,
   createOrganization,
+  configureOrchestrator,
   deleteAgent,
   duplicateAgent,
   loadAgentsPage,
@@ -13,8 +14,10 @@ import {
   loadNotifications,
   loadOrganizations,
   markNotificationRead,
+  replaceAgentDocuments,
   updateAgent,
   updateOrganization,
+  uploadDocuments,
 } from "@/lib/server-api";
 
 async function authorization(): Promise<string | undefined> {
@@ -78,6 +81,17 @@ export async function createOrganizationAction(input: {
   return created;
 }
 
+export async function configureOrchestratorAction(
+  organizationId: string,
+  input: { welcomeMessage: string; systemPrompt: string },
+): Promise<void> {
+  await configureOrchestrator(organizationId, {
+    welcome_message: input.welcomeMessage,
+    system_prompt: input.systemPrompt,
+  }, await authorization());
+  revalidatePath("/");
+}
+
 export async function updateOrganizationAction(
   organizationId: string,
   input: Partial<Pick<OrganizationDto, "name" | "description" | "category" | "public_display_name" | "primary_color">> & { version: number },
@@ -89,9 +103,31 @@ export async function updateOrganizationAction(
 
 export async function createAgentAction(
   organizationId: string,
-  input: { name: string; description: string },
+  input: { name: string; description: string; documentIds?: string[] },
 ): Promise<AgentDto> {
-  const created = await createAgent(organizationId, input, await authorization());
+  const created = await createAgent(organizationId, {
+    name: input.name,
+    description: input.description,
+    document_ids: input.documentIds,
+  }, await authorization());
+  revalidatePath("/");
+  return created;
+}
+
+export async function replaceAgentDocumentsAction(
+  organizationId: string,
+  agentId: string,
+  documentIds: string[],
+): Promise<void> {
+  await replaceAgentDocuments(organizationId, agentId, documentIds, await authorization());
+  revalidatePath("/");
+}
+
+export async function uploadDocumentsAction(formData: FormData): Promise<DocumentDto[]> {
+  const organizationId = String(formData.get("organization_id") ?? "");
+  if (!organizationId) throw new Error("Organization is required for document upload.");
+  formData.delete("organization_id");
+  const created = await uploadDocuments(organizationId, formData, await authorization());
   revalidatePath("/");
   return created;
 }

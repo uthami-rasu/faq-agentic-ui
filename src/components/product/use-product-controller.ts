@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import {
   createAgentAction,
+  configureOrchestratorAction,
   createOrganizationAction,
   deleteAgentAction,
   duplicateAgentAction,
@@ -12,6 +13,7 @@ import {
   loadOrganizationsAction,
   updateAgentAction,
   updateOrganizationAction,
+  uploadDocumentsAction,
 } from "@/app/actions";
 import type { InitialAppData } from "@/lib/api";
 import { setTheme, setView, useAppDispatch, useAppSelector, type ViewKey } from "@/store";
@@ -19,6 +21,7 @@ import { initialAgents, initialDashboardData, initialOrganizations, useMockData 
 import type { Agent, AgentTab, DashboardBackendData, Organization, OrganizationTab } from "./types";
 import { apiErrorMessage, mapAgent, mapOrganization } from "./utils";
 import type { AgentForm } from "./dialogs/create-agent-modal";
+import type { OrganizationSetupDraft } from "./dialogs/create-organization-wizard";
 
 export const emptyDashboardData: DashboardBackendData = {
   processing: { completed: 0, processing: 0, failed: 0 },
@@ -151,13 +154,23 @@ export function useProductController(initialData?: InitialAppData, initialView?:
       notify(`${values.name} created as a draft`); changeView("agent"); router.refresh();
     } catch (error) { notify(apiErrorMessage(error)); }
   };
-  const createOrganization = async (organization: Omit<Organization, "id" | "version">, agentDraft: { name: string; description: string; documentAdded: boolean }) => {
+  const createOrganization = async (organization: Omit<Organization, "id" | "version">, setup: OrganizationSetupDraft) => {
     try {
       const created = mapOrganization(await createOrganizationAction({ name: organization.name, description: organization.description, category: organization.category }));
       setOrganizations((current) => [...current, created]); setSelectedOrganizationId(created.id);
-      if (agentDraft.name) { const createdAgent = mapAgent(await createAgentAction(created.id, agentDraft)); setAgents((current) => [createdAgent, ...current]); setSelectedAgentId(createdAgent.id); }
-      setDashboardData((current) => ({ ...current, [created.id]: { ...emptyDashboardData, activity: [{ id: Date.now(), label: `${agentDraft.name} created`, context: "FAQ Agent", time: "Just now", kind: "agent" }] } }));
-      setShowOrganizationWizard(false); changeView("dashboard"); notify(`${created.name} created; unavailable setup steps were skipped`);
+      if (setup.orchestrator) await configureOrchestratorAction(created.id, setup.orchestrator);
+      let createdAgent: Agent | undefined;
+      if (setup.agent?.name) { createdAgent = mapAgent(await createAgentAction(created.id, { ...setup.agent, documentIds: [] })); setAgents((current) => [createdAgent!, ...current]); setSelectedAgentId(createdAgent.id); }
+      if (setup.files.length) {
+        const formData = new FormData();
+        formData.set("organization_id", created.id);
+        setup.files.forEach((file) => formData.append("files", file));
+        if (createdAgent) formData.append("agent_ids", createdAgent.id);
+        await uploadDocumentsAction(formData);
+      }
+      const activity = createdAgent ? [{ id: Date.now(), label: `${createdAgent.name} created`, context: "FAQ Agent", time: "Just now", kind: "agent" as const }] : [];
+      setDashboardData((current) => ({ ...current, [created.id]: { ...emptyDashboardData, orchestratorConfigured: Boolean(setup.orchestrator), activity } }));
+      setShowOrganizationWizard(false); changeView("dashboard"); notify(`${created.name} created${setup.files.length ? ` with ${setup.files.length} document${setup.files.length === 1 ? "" : "s"}` : ""}`);
     } catch (error) { notify(apiErrorMessage(error)); }
   };
 
