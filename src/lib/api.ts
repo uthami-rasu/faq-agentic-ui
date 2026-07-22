@@ -1,6 +1,6 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080/api/v1";
+const API_BASE_URL = "/api/backend";
 
-type ApiEnvelope<T> = { data: T };
+type ApiEnvelope<T> = { data: T; pagination?: PaginationDto };
 type ApiErrorEnvelope = {
   error?: {
     code?: string;
@@ -34,6 +34,26 @@ export type AgentDto = {
   updated_at: string;
 };
 
+export type PaginationDto = {
+  page: number;
+  page_size: number;
+  total_items: number;
+  total_pages: number;
+};
+
+export type PaginatedResult<T> = {
+  items: T[];
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+};
+
+export type InitialAppData = {
+  organizations: OrganizationDto[];
+  agentsPage: PaginatedResult<AgentDto>;
+};
+
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -45,31 +65,16 @@ export class ApiError extends Error {
   }
 }
 
-function authorizationHeader(): string | undefined {
-  if (typeof window !== "undefined") {
-    const accessToken = window.localStorage.getItem("querydesk-access-token");
-    if (accessToken) return `Bearer ${accessToken}`;
-  }
-
-  const user = process.env.NEXT_PUBLIC_DEV_AUTH_USER;
-  const password = process.env.NEXT_PUBLIC_DEV_AUTH_PASSWORD;
-  if (user && password && typeof window !== "undefined") {
-    return `Basic ${window.btoa(`${user}:${password}`)}`;
-  }
-  return undefined;
-}
-
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const authorization = authorizationHeader();
+async function requestEnvelope<T>(path: string, init: RequestInit = {}): Promise<ApiEnvelope<T>> {
   const headers = new Headers(init.headers);
   headers.set("Accept", "application/json");
   if (init.body) headers.set("Content-Type", "application/json");
-  if (authorization) headers.set("Authorization", authorization);
 
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
     headers,
     cache: "no-store",
+    credentials: "same-origin",
   });
 
   if (!response.ok) {
@@ -82,9 +87,12 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     );
   }
 
-  if (response.status === 204) return undefined as T;
-  const payload = await response.json() as ApiEnvelope<T>;
-  return payload.data;
+  if (response.status === 204) return { data: undefined as T };
+  return response.json() as Promise<ApiEnvelope<T>>;
+}
+
+async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  return (await requestEnvelope<T>(path, init)).data;
 }
 
 export const faqApi = {
@@ -104,9 +112,25 @@ export const faqApi = {
     return request(`/organizations/${organizationId}`, { method: "PATCH", body: JSON.stringify(input) });
   },
 
-  listAgents(organizationId: string, search = ""): Promise<AgentDto[]> {
-    const params = new URLSearchParams({ search, limit: "100" });
-    return request(`/organizations/${organizationId}/agents?${params}`);
+  async listAgents(
+    organizationId: string,
+    options: { search?: string; page?: number; pageSize?: number } = {},
+  ): Promise<PaginatedResult<AgentDto>> {
+    const page = options.page ?? 1;
+    const pageSize = options.pageSize ?? 20;
+    const params = new URLSearchParams({
+      search: options.search ?? "",
+      page: String(page),
+      page_size: String(pageSize),
+    });
+    const payload = await requestEnvelope<AgentDto[]>(`/organizations/${organizationId}/agents?${params}`);
+    return {
+      items: payload.data,
+      page: payload.pagination?.page ?? page,
+      pageSize: payload.pagination?.page_size ?? pageSize,
+      totalItems: payload.pagination?.total_items ?? payload.data.length,
+      totalPages: payload.pagination?.total_pages ?? (payload.data.length ? 1 : 0),
+    };
   },
 
   createAgent(organizationId: string, input: { name: string; description: string }): Promise<AgentDto> {
