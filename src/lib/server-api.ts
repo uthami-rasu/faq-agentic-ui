@@ -26,11 +26,18 @@ async function requestBackend<T>(path: string, userAuthorization?: string, init:
   headers.set("Accept", "application/json");
   if (init.body && !(init.body instanceof FormData)) headers.set("Content-Type", "application/json");
   if (authorization) headers.set("Authorization", authorization);
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...init,
-    headers,
-    cache: "no-store",
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      ...init,
+      headers,
+      cache: "no-store",
+    });
+  } catch (cause) {
+    const error = new Error("Arffy AI couldn't reach the backend service. Check that it is running, then retry.", { cause });
+    error.name = "BACKEND_UNAVAILABLE";
+    throw error;
+  }
 
   if (!response.ok) {
     const payload = await response.json().catch(() => ({})) as { error?: { message?: string; code?: string } };

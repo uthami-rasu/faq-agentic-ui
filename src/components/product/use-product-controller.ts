@@ -155,23 +155,35 @@ export function useProductController(initialData?: InitialAppData, initialView?:
     } catch (error) { notify(apiErrorMessage(error)); }
   };
   const createOrganization = async (organization: Omit<Organization, "id" | "version">, setup: OrganizationSetupDraft) => {
+    let created: Organization;
     try {
-      const created = mapOrganization(await createOrganizationAction({ name: organization.name, description: organization.description, category: organization.category }));
-      setOrganizations((current) => [...current, created]); setSelectedOrganizationId(created.id);
-      if (setup.orchestrator) await configureOrchestratorAction(created.id, setup.orchestrator);
-      let createdAgent: Agent | undefined;
-      if (setup.agent?.name) { createdAgent = mapAgent(await createAgentAction(created.id, { ...setup.agent, documentIds: [] })); setAgents((current) => [createdAgent!, ...current]); setSelectedAgentId(createdAgent.id); }
-      if (setup.files.length) {
+      created = mapOrganization(await createOrganizationAction({ name: organization.name, description: organization.description, category: organization.category }));
+    } catch (error) { notify(apiErrorMessage(error)); return; }
+    setOrganizations((current) => [...current, created]); setSelectedOrganizationId(created.id);
+    const warnings: string[] = [];
+    let orchestratorConfigured = false;
+    if (setup.orchestrator) {
+      try { await configureOrchestratorAction(created.id, setup.orchestrator); orchestratorConfigured = true; }
+      catch { warnings.push("orchestrator setup"); }
+    }
+    let createdAgent: Agent | undefined;
+    if (setup.agent?.name) {
+      try { createdAgent = mapAgent(await createAgentAction(created.id, { ...setup.agent, documentIds: [] })); setAgents((current) => [createdAgent!, ...current]); setSelectedAgentId(createdAgent.id); }
+      catch { warnings.push("first agent"); }
+    }
+    if (setup.files.length) {
+      try {
         const formData = new FormData();
         formData.set("organization_id", created.id);
         setup.files.forEach((file) => formData.append("files", file));
         if (createdAgent) formData.append("agent_ids", createdAgent.id);
         await uploadDocumentsAction(formData);
-      }
-      const activity = createdAgent ? [{ id: Date.now(), label: `${createdAgent.name} created`, context: "FAQ Agent", time: "Just now", kind: "agent" as const }] : [];
-      setDashboardData((current) => ({ ...current, [created.id]: { ...emptyDashboardData, orchestratorConfigured: Boolean(setup.orchestrator), activity } }));
-      setShowOrganizationWizard(false); changeView("dashboard"); notify(`${created.name} created${setup.files.length ? ` with ${setup.files.length} document${setup.files.length === 1 ? "" : "s"}` : ""}`);
-    } catch (error) { notify(apiErrorMessage(error)); }
+      } catch { warnings.push("document upload"); }
+    }
+    const activity = createdAgent ? [{ id: Date.now(), label: `${createdAgent.name} created`, context: "FAQ Agent", time: "Just now", kind: "agent" as const }] : [];
+    setDashboardData((current) => ({ ...current, [created.id]: { ...emptyDashboardData, orchestratorConfigured, activity } }));
+    setShowOrganizationWizard(false); changeView("dashboard"); router.refresh();
+    notify(warnings.length ? `${created.name} created; retry ${warnings.join(" and ")} from the dashboard` : `${created.name} created successfully`);
   };
 
   return {
