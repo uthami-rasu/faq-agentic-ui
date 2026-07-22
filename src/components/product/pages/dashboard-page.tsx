@@ -1,4 +1,4 @@
-import { Activity, AlertCircle, Bot, Check, CheckCircle2, Code2, Files, Globe2, MessagesSquare, Network, RotateCcw } from "lucide-react";
+import { Activity, AlertCircle, Bot, Check, CheckCircle2, Code2, Files, FileText, Globe2, MessagesSquare, Network, RotateCcw } from "lucide-react";
 import type { Agent, DashboardBackendData, Organization } from "../types";
 import { PageHeading } from "../shared";
 
@@ -6,7 +6,7 @@ export function DashboardPage({ agents, organization, data }: { agents: Agent[];
   const activeAgents = agents.filter((agent) => agent.status === "Live").length;
   const draftAgents = agents.filter((agent) => agent.status === "Draft").length;
   const totalDocuments = data.processing.completed + data.processing.processing + data.processing.failed;
-  const activityIcon = (kind: DashboardBackendData["activity"][number]["kind"]) => kind === "document" ? <Code2 size={17}/> : kind === "widget" ? <Code2 size={17}/> : <Bot size={17}/>;
+  const activityIcon = (kind: DashboardBackendData["activity"][number]["kind"]) => kind === "document" ? <FileText size={17}/> : kind === "widget" ? <Code2 size={17}/> : <Bot size={17}/>;
 
   return <>
     <PageHeading eyebrow="Organization" title={organization.name} description="Current configuration and processing status for this organization." />
