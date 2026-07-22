@@ -21,7 +21,9 @@ export default async function Home({ searchParams }: { searchParams: HomeSearchP
   const documentAgentId = first(params.document_agent).slice(0, 50);
   const requestedDocumentPage = Number.parseInt(first(params.document_page), 10);
   const documentPage = Number.isFinite(requestedDocumentPage) && requestedDocumentPage > 0 ? requestedDocumentPage : 1;
-  const accessToken = (await cookies()).get("querydesk-access-token")?.value;
+  const cookieStore = await cookies();
+  const accessToken = cookieStore.get("arffy-ai-access-token")?.value
+    ?? cookieStore.get("querydesk-access-token")?.value;
   const initialData = process.env.NEXT_PUBLIC_USE_MOCK_DATA === "true"
     ? undefined
     : await loadInitialAppData(

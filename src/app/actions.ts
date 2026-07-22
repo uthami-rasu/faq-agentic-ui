@@ -18,7 +18,9 @@ import {
 } from "@/lib/server-api";
 
 async function authorization(): Promise<string | undefined> {
-  const accessToken = (await cookies()).get("querydesk-access-token")?.value;
+  const cookieStore = await cookies();
+  const accessToken = cookieStore.get("arffy-ai-access-token")?.value
+    ?? cookieStore.get("querydesk-access-token")?.value;
   return accessToken ? `Bearer ${accessToken}` : undefined;
 }
 

@@ -9,7 +9,7 @@ import "@fontsource/manrope/700.css";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "QueryDesk AI — Knowledge agents",
+  title: "Arffy AI — Knowledge agents",
   description: "Build, test, and deploy AI-powered FAQ agents.",
 };
 

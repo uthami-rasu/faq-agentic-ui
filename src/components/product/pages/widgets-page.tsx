@@ -10,7 +10,7 @@ type Props = { notify: Notify; embedded?: boolean; agentMode?: boolean; agentNam
 export function WidgetsPage({ notify, embedded = false, agentMode = false, agentName = "Customer Support" }: Props) {
   const [widgetType, setWidgetType] = useState<"Organization" | "Agent">(agentMode ? "Agent" : "Organization");
   const [open, setOpen] = useState(true);
-  const snippet = agentMode ? '<script src="https://cdn.querydesk.ai/widget.js" data-agent="agent_cs_8f21"></script>' : '<script src="https://cdn.querydesk.ai/widget.js" data-organization="acme_92a7"></script>';
+  const snippet = agentMode ? '<script src="https://cdn.arffy.ai/widget.js" data-agent="agent_cs_8f21"></script>' : '<script src="https://cdn.arffy.ai/widget.js" data-organization="acme_92a7"></script>';
   return <>
     {!embedded && <PageHeading eyebrow="Publish with confidence" title="Widget deployment" description="Customize your assistant, preview it live, then add it to any website."><button className="primary-button" onClick={() => notify("Widget configuration published")}><Globe2 size={16}/> Publish changes</button></PageHeading>}
     {embedded && <div className="section-intro"><div><h2>{agentMode ? `${agentName} widget` : "Organization widget"}</h2><p>{agentMode ? `Deploy a widget that sends every question directly to ${agentName}.` : "Deploy your public assistant and route questions through the AI Orchestrator."}</p></div><button className="primary-button" onClick={() => notify("Widget configuration published")}><Globe2 size={16}/> Publish changes</button></div>}

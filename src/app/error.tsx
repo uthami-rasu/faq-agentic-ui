@@ -9,7 +9,7 @@ export default function ErrorPage({ error, reset }: { error: Error & { digest?: 
   return <ErrorScreen
     code="500"
     eyebrow="Temporary detour"
-    title="QueryDesk hit a snag"
+    title="Arffy AI hit a snag"
     description="We couldn’t load this workspace right now. Check the service connection or try the request again."
     reference={error.digest}
     actions={<><button className="error-primary-action" onClick={reset}>Try again</button><a className="error-secondary-action" href="/">Return home</a></>}

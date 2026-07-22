@@ -37,7 +37,7 @@ export function AppSidebar(props: SidebarProps) {
   return <>
     <AnimatePresence>{open && <motion.button aria-label="Close navigation" onClick={() => dispatch(setSidebarOpen(false))} className="sidebar-scrim" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}/>}</AnimatePresence>
     <aside className={`sidebar ${open ? "sidebar-open" : ""}`}>
-      <div className="brand-row"><button className="brand" onClick={() => changeView("dashboard")}><span className="brand-mark"><Sparkles size={19} strokeWidth={2.5}/></span><span>QueryDesk <b>AI</b></span></button><button className="icon-button sidebar-close" onClick={() => dispatch(setSidebarOpen(false))}><X size={18}/></button></div>
+      <div className="brand-row"><button className="brand" onClick={() => changeView("dashboard")}><span className="brand-mark"><Sparkles size={19} strokeWidth={2.5}/></span><span>Arffy <b>AI</b></span></button><button className="icon-button sidebar-close" onClick={() => dispatch(setSidebarOpen(false))}><X size={18}/></button></div>
       <button className="workspace-switcher" aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)}><span className="workspace-avatar">{selectedOrganization.initials}</span><span><small>Organization</small><strong>{selectedOrganization.name}</strong></span><ChevronDown size={15} className={menuOpen ? "org-chevron-open" : ""}/></button>
       <AnimatePresence>{menuOpen && <motion.div className="organization-menu" initial={{ opacity: 0, y: -6, scale: .98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -4, scale: .98 }}>
         <div className="organization-menu-title"><span>Select organization</span><button onClick={closeMenu}><X size={14}/></button></div>

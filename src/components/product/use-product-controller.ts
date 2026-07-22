@@ -71,13 +71,13 @@ export function useProductController(initialData?: InitialAppData, initialView?:
     setApplyingInitialView(false);
   }, [dispatch, initialView]);
   useEffect(() => {
-    const saved = localStorage.getItem("querydesk-theme") as "light" | "dark" | null;
+    const saved = (localStorage.getItem("arffy-ai-theme") ?? localStorage.getItem("querydesk-theme")) as "light" | "dark" | null;
     const preferred = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
     dispatch(setTheme(saved || preferred));
   }, [dispatch]);
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
-    localStorage.setItem("querydesk-theme", theme);
+    localStorage.setItem("arffy-ai-theme", theme);
   }, [theme]);
   useEffect(() => {
     if (initialData) setSearch(initialData.faqQuery.search);

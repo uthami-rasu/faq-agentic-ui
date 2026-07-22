@@ -1,5 +1,5 @@
 export default function Loading() {
-  return <main className="app-loading-shell" aria-label="Loading QueryDesk" aria-busy="true">
+  return <main className="app-loading-shell" aria-label="Loading Arffy AI" aria-busy="true">
     <aside className="app-loading-sidebar" aria-hidden="true">
       <div className="loading-brand"><span className="shimmer-block"/><i className="shimmer-block"/></div>
       <div className="loading-workspace shimmer-block"/>
@@ -15,6 +15,6 @@ export default function Loading() {
         <div className="loading-card-grid">{Array.from({ length: 6 }, (_, index) => <div className="loading-agent-card" key={index}><span className="shimmer-block"/><b className="shimmer-block"/><i className="shimmer-block"/><i className="shimmer-block compact"/></div>)}</div>
       </div>
     </section>
-    <span className="sr-loading-message">Loading your QueryDesk workspace…</span>
+    <span className="sr-loading-message">Loading your Arffy AI workspace…</span>
   </main>;
 }

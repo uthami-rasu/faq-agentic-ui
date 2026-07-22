@@ -30,7 +30,7 @@ export function ProductShell({ initialData, initialView }: { initialData?: Initi
 
   if (!selectedOrganization) {
     const failed = organizationsQuery.isError;
-    return <main className="min-h-screen bg-app-bg text-app-text grid place-items-center p-8"><section className="panel max-w-xl p-8 text-center"><span className="wizard-step-icon mx-auto"><Database size={24}/></span><h1 className="mt-4 font-display text-2xl font-bold">{failed ? "Backend connection failed" : "Loading QueryDesk"}</h1><p className="mt-2 text-sm text-app-muted">{failed ? apiErrorMessage(organizationsQuery.error) : "Loading organizations and FAQ agents from the backend…"}</p>{failed && <button className="primary-button mt-5" onClick={() => organizationsQuery.refetch()}><RotateCcw size={16}/> Retry connection</button>}</section></main>;
+    return <main className="min-h-screen bg-app-bg text-app-text grid place-items-center p-8"><section className="panel max-w-xl p-8 text-center"><span className="wizard-step-icon mx-auto"><Database size={24}/></span><h1 className="mt-4 font-display text-2xl font-bold">{failed ? "Backend connection failed" : "Loading Arffy AI"}</h1><p className="mt-2 text-sm text-app-muted">{failed ? apiErrorMessage(organizationsQuery.error) : "Loading organizations and FAQ agents from the backend…"}</p>{failed && <button className="primary-button mt-5" onClick={() => organizationsQuery.refetch()}><RotateCcw size={16}/> Retry connection</button>}</section></main>;
   }
 
   const currentDashboard = dashboardData[selectedOrganization.id] || emptyDashboardData;

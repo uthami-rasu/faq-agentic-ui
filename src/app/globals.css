@@ -535,8 +535,8 @@ body { @apply text-[15px] leading-normal; }
 
 /* Shared API loading shimmer. */
 .shimmer-block { position: relative; display: block; overflow: hidden; border-radius: 7px; background: color-mix(in srgb, var(--primary) 7%, var(--surface-soft)); }
-.shimmer-block:after { content: ""; position: absolute; inset: 0; transform: translateX(-105%); background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--primary) 14%, var(--surface)) 48%, transparent); animation: querydesk-shimmer 1.35s ease-in-out infinite; }
-@keyframes querydesk-shimmer { to { transform: translateX(105%); } }
+.shimmer-block:after { content: ""; position: absolute; inset: 0; transform: translateX(-105%); background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--primary) 14%, var(--surface)) 48%, transparent); animation: arffy-shimmer 1.35s ease-in-out infinite; }
+@keyframes arffy-shimmer { to { transform: translateX(105%); } }
 .agent-card-shimmer { pointer-events: none; cursor: default; }
 .agent-card-shimmer:hover { transform: none; box-shadow: var(--shadow); }
 .agent-card-shimmer .shimmer-avatar { width: 43px; height: 43px; border-radius: 10px; }
