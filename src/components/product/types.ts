@@ -41,6 +41,4 @@ export const titleMap: Record<ViewKey, string> = {
   agent: "Agent details",
   documents: "Documents",
   settings: "Settings",
-  profile: "Profile & access",
-  admin: "Super Admin",
 };

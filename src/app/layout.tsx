@@ -7,6 +7,7 @@ import "@fontsource/inter/700.css";
 import "@fontsource/manrope/600.css";
 import "@fontsource/manrope/700.css";
 import "./globals.css";
+import "./admin.css";
 
 export const metadata: Metadata = {
   title: "Arffy AI — Knowledge agents",

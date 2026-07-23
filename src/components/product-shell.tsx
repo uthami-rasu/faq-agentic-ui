@@ -14,8 +14,6 @@ import { AgentsPage } from "./product/pages/agents-page";
 import { AgentDetailsPage } from "./product/pages/agent-details-page";
 import { SettingsPage } from "./product/pages/settings-page";
 import { DocumentsPage } from "./product/pages/documents-page";
-import { ProfilePage } from "./product/pages/profile-page";
-import { AdminPage } from "./product/pages/admin-page";
 import { CreateAgentModal } from "./product/dialogs/create-agent-modal";
 import { CreateOrganizationWizard } from "./product/dialogs/create-organization-wizard";
 import { DeleteAgentConfirmation } from "./product/dialogs/delete-agent-confirmation";
@@ -52,9 +50,7 @@ export function ProductShell({ initialData, initialView }: { initialData?: Initi
           {view === "agents" && <AgentsPage agents={organizationAgents} organizationId={selectedOrganization.id} search={search} setSearch={setSearch} ssrPage={selectedOrganization.id === ssrOrganizationId ? initialData?.faqAgentsPage : undefined} ssrQuery={selectedOrganization.id === ssrOrganizationId ? initialData?.faqQuery : undefined} create={() => setShowCreate(true)} openAgent={openAgent} duplicateAgent={duplicateAgent} deleteAgent={(agent) => setDeleteConfirmation({ agent, returnToList: false })} notify={notify} canCreate={can("agent.create")} canEdit={can("agent.edit")} canDelete={can("agent.delete")}/>}
           {view === "agent" && selectedAgent && <AgentDetailsPage agent={selectedAgent} tab={agentTab} setTab={setAgentTab} models={initialData?.aiModels ?? []} modelCatalogAvailable={initialData?.aiModelsAvailable ?? false} initialDocuments={selectedOrganization.id === ssrOrganizationId ? initialData?.documentsPage : undefined} notify={notify} onBack={() => changeView("agents")} updateAgent={saveAgent} duplicateAgent={() => duplicateAgent(selectedAgent, true)} deleteAgent={() => setDeleteConfirmation({ agent: selectedAgent, returnToList: true })} canEdit={can("agent.edit")} canCreate={can("agent.create")} canDelete={can("agent.delete")} canAssign={can("document.assign")} canUpload={can("document.upload")}/>}
           {view === "documents" && <DocumentsPage organizationId={selectedOrganization.id} agents={organizationAgents} ssrPage={selectedOrganization.id === ssrOrganizationId ? initialData?.documentsPage : undefined} query={initialData?.documentQuery ?? { search: "", agentId: "", page: 1, pageSize: 12 }} notify={notify} canUpload={can("document.upload")}/>}
-          {view === "settings" && <SettingsPage/>}
-          {view === "profile" && <ProfilePage user={currentUser}/>}
-          {view === "admin" && currentUser.super_admin && <AdminPage notify={notify}/>}
+          {view === "settings" && <SettingsPage user={currentUser}/>}
         </motion.div></AnimatePresence>
       </div>
     </main>

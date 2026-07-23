@@ -18,7 +18,7 @@ export default async function Home({ searchParams }: { searchParams: HomeSearchP
   const requestedPage = Number.parseInt(first(params.agent_page), 10);
   const page = Number.isFinite(requestedPage) && requestedPage > 0 ? requestedPage : 1;
   const requestedView = first(params.view);
-  const initialView = requestedView === "agents" || requestedView === "documents" ? requestedView : undefined;
+  const initialView = requestedView === "agents" || requestedView === "documents" || requestedView === "settings" ? requestedView : undefined;
   const documentSearch = first(params.document_search).slice(0, 200);
   const documentAgentId = first(params.document_agent).slice(0, 50);
   const requestedDocumentPage = Number.parseInt(first(params.document_page), 10);
@@ -37,5 +37,6 @@ export default async function Home({ searchParams }: { searchParams: HomeSearchP
     if (error instanceof ApiError && error.status === 401) redirect("/login?session=expired");
     throw error;
   }
+  if (initialData?.currentUser.super_admin) redirect("/admin");
   return <ProductShell initialData={initialData} initialView={initialView} />;
 }

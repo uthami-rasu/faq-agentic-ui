@@ -1,0 +1,34 @@
+"use client";
+
+import { useState, type FormEvent } from "react";
+import { KeyRound, LoaderCircle, Plus, Search, ShieldCheck, UserPlus } from "lucide-react";
+import { changeAdminPasswordAction, createAdminRoleAction, createAdminUserAction, setAdminUserActiveAction } from "@/app/actions";
+import type { AdminAccessDto } from "@/lib/api";
+import { initials } from "./admin-chrome";
+
+type PanelProps = { data: AdminAccessDto; refresh: (message: string) => Promise<void> };
+
+export function UsersPanel({ data, refresh }: PanelProps) {
+  const [busy, setBusy] = useState(false);
+  const [search, setSearch] = useState("");
+  const users = data.users.filter((user) => `${user.full_name} ${user.email}`.toLowerCase().includes(search.toLowerCase()));
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault(); setBusy(true); const form = new FormData(event.currentTarget);
+    try { await createAdminUserAction({ email: String(form.get("email")), fullName: String(form.get("fullName")), password: String(form.get("password")), superAdmin: form.get("superAdmin") === "on" }); event.currentTarget.reset(); await refresh("User registered"); } finally { setBusy(false); }
+  };
+  const changePassword = async (userId: string) => { const password = window.prompt("Enter a new password (minimum 10 characters)"); if (!password) return; await changeAdminPasswordAction(userId, password); await refresh("Password changed and sessions revoked"); };
+  return <div className="governance-management-grid"><form className="governance-panel governance-form" onSubmit={submit}><PanelHeader icon={<UserPlus/>} title="Register user" detail="Create an identity and set its initial access state."/><label>Full name<input name="fullName" required maxLength={160} placeholder="e.g. Asha Patel"/></label><label>Email address<input name="email" type="email" required placeholder="name@company.com"/></label><label>Initial password<input name="password" type="password" minLength={10} required placeholder="Minimum 10 characters"/></label><label className="governance-check"><input name="superAdmin" type="checkbox"/>Grant Super Admin access</label><button className="governance-primary" disabled={busy}>{busy ? <LoaderCircle className="spin"/> : <Plus/>}{busy ? "Registering…" : "Register user"}</button></form>
+    <section className="governance-panel governance-directory"><header><div><h2>User directory</h2><p>{data.users.length} identities registered on the platform.</p></div><label><Search size={17}/><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search users"/></label></header><div className="governance-table"><div className="governance-table-head governance-user-row"><span>User</span><span>Access type</span><span>Status</span><span>Actions</span></div>{users.map((user) => <article className="governance-user-row" key={user.id}><div className="governance-user-identity"><span>{initials(user.full_name)}</span><div><b>{user.full_name}</b><small>{user.email}</small></div></div><span className={user.super_admin ? "governance-badge privileged" : "governance-badge"}>{user.super_admin ? "Super Admin" : "Organization user"}</span><span className={`governance-status ${user.active ? "active" : "inactive"}`}><i/>{user.active ? "Active" : "Disabled"}</span><div className="governance-row-actions"><button onClick={() => changePassword(user.id)}>Reset password</button><button className={user.active ? "danger" : "success"} onClick={async () => { await setAdminUserActiveAction(user.id, !user.active); await refresh(user.active ? "User disabled" : "User enabled"); }}>{user.active ? "Disable" : "Enable"}</button></div></article>)}{users.length === 0 && <p className="governance-empty-row">No users match your search.</p>}</div></section></div>;
+}
+
+export function RolesPanel({ data, refresh }: PanelProps) {
+  const [scope, setScope] = useState<"ORGANIZATION" | "PLATFORM">("ORGANIZATION");
+  const [selected, setSelected] = useState<string[]>([]);
+  const available = data.permissions.filter((permission) => permission.scope === scope);
+  const submit = async (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); const form = new FormData(event.currentTarget); await createAdminRoleAction({ name: String(form.get("name")), description: String(form.get("description")), scope, permissions: selected }); event.currentTarget.reset(); setSelected([]); await refresh("Role created"); };
+  return <div className="governance-management-grid"><form className="governance-panel governance-form governance-role-form" onSubmit={submit}><PanelHeader icon={<KeyRound/>} title="Create role" detail="Bundle permissions into a reusable access policy."/><label>Role name<input name="name" required placeholder="e.g. Content reviewer"/></label><label>Description<textarea name="description" rows={2} placeholder="Explain who should receive this role"/></label><label>Scope<select value={scope} onChange={(event) => { setScope(event.target.value as typeof scope); setSelected([]); }}><option value="ORGANIZATION">Organization</option><option value="PLATFORM">Platform</option></select></label><div className="governance-permission-picker">{[0, 1, 2].map((level) => <section key={level}><h3>Level {level}<small>{level === 0 ? "Standard" : level === 1 ? "Management" : "Sensitive"}</small></h3>{available.filter((permission) => permission.permission_level === level).map((permission) => <label key={permission.code}><input type="checkbox" checked={selected.includes(permission.code)} onChange={() => setSelected((current) => current.includes(permission.code) ? current.filter((code) => code !== permission.code) : [...current, permission.code])}/><span><b>{permission.description}</b><small>{permission.code}</small></span></label>)}</section>)}</div><button className="governance-primary" disabled={!selected.length}><Plus/>Create role</button></form>
+    <section className="governance-panel governance-directory governance-role-directory"><header><div><h2>Role directory</h2><p>Reusable platform and organization access policies.</p></div></header><div className="governance-role-cards">{data.roles.map((role) => { const level = Math.max(0, ...role.permissions.map((code) => data.permissions.find((item) => item.code === code)?.permission_level ?? 0)); return <article key={role.id}><span className={`governance-level level-${level}`}>L{level}</span><div><span><b>{role.name}</b>{role.system_role && <em><ShieldCheck size={13}/>Protected</em>}</span><p>{role.description || "No description provided."}</p><small>{role.scope.toLowerCase()} scope · {role.permissions.length} permissions</small></div></article>; })}</div></section></div>;
+}
+
+function PanelHeader({ icon, title, detail }: { icon: React.ReactNode; title: string; detail: string }) { return <header><span>{icon}</span><div><h2>{title}</h2><p>{detail}</p></div></header>; }
+

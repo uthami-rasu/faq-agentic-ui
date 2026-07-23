@@ -10,8 +10,10 @@ export async function loginAction(_previous: LoginState, formData: FormData): Pr
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
   if (!email || !password) return { error: "Enter your email and password." };
+  let superAdmin = false;
   try {
     const session = await login(email, password);
+    superAdmin = session.user.super_admin;
     const expires = new Date(session.expires_at);
     (await cookies()).set("arffy-ai-access-token", session.access_token, {
       httpOnly: true,
@@ -23,5 +25,5 @@ export async function loginAction(_previous: LoginState, formData: FormData): Pr
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Login failed. Please try again." };
   }
-  redirect("/");
+  redirect(superAdmin ? "/admin" : "/");
 }
