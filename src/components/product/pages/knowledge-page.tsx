@@ -55,11 +55,11 @@ export function KnowledgePage({ organizationId, agentId, agentName, notify, init
   };
 
   return <section className="knowledge-library-layout">
-    <div className="section-intro"><div><h2>Knowledge</h2><p>Select documents from this organization for {agentName}. Files stay reusable across agents.</p></div><button className="primary-button" disabled={!dirty || saving} onClick={save}>{saving ? <LoaderCircle className="spin" size={16}/> : <Save size={16}/>} {saving ? "Saving…" : "Save knowledge"}</button></div>
+    <div className="section-intro"><div><h2>Knowledge</h2><p>Only documents explicitly linked here are available to {agentName}.</p></div><button className="primary-button" disabled={!dirty || saving} onClick={save}>{saving ? <LoaderCircle className="spin" size={16}/> : <Save size={16}/>} {saving ? "Saving…" : "Save knowledge"}</button></div>
     <div className="knowledge-library-grid">
-      <div className="panel knowledge-picker-panel"><DocumentPicker organizationId={organizationId} initialPage={initialPage} selectedIds={selectedIds} onChange={(ids) => { setSelectedIds(ids); setEdited(true); }}/></div>
-      <aside className="panel knowledge-library-note"><span><BookOpen size={20}/></span><h3>Organization-owned knowledge</h3><p>Upload a document once, then assign it to any FAQ agent. Removing it from this agent does not delete the source file.</p><div><Check size={14}/> {selectedIds.length} selected for this agent</div></aside>
+      <div className="panel knowledge-picker-panel"><DocumentPicker organizationId={organizationId} agentId={agentId} initialPage={initialPage} selectedIds={selectedIds} onChange={(ids) => { setSelectedIds(ids); setEdited(true); }}/></div>
+      <aside className="panel knowledge-library-note"><span><BookOpen size={20}/></span><h3>Private by assignment</h3><p>Documents uploaded here link to {agentName} automatically. Documents used by other agents stay unlinked unless you explicitly select and save them.</p><div><Check size={14}/> {selectedIds.length} selected for this agent</div></aside>
     </div>
-    <div className="knowledge-upload"><h3>Upload and assign new documents</h3><p>New files are saved to the organization library and assigned to {agentName}.</p><DocumentUploadPanel organizationId={organizationId} agentId={agentId} notify={notify} compact/></div>
+    <div className="knowledge-upload"><h3>Upload directly to this agent</h3><p>New files are stored in the organization bucket and linked only to {agentName}.</p><DocumentUploadPanel organizationId={organizationId} agentId={agentId} notify={notify} compact/></div>
   </section>;
 }

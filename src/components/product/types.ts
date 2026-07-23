@@ -24,17 +24,9 @@ export type Organization = {
 };
 
 export type DashboardBackendData = {
-  processing: { completed: number; processing: number; failed: number };
-  orchestratorConfigured: boolean;
-  organizationWidgetConfigured: boolean;
-  faqAgentWidgets: number;
-  activity: Array<{
-    id: number;
-    label: string;
-    context: string;
-    time: string;
-    kind: "document" | "agent" | "widget";
-  }>;
+  agents: { total: number; active: number; draft: number; archived: number };
+  documents: { total: number; ready: number; processing: number; failed: number; chunks: number };
+  orchestrator: { active: boolean };
 };
 
 export type OrganizationTab = "overview" | "branding" | "members" | "api" | "danger";

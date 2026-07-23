@@ -10,6 +10,7 @@ import {
   deleteAgentAction,
   duplicateAgentAction,
   loadAgentsPageAction,
+  loadDashboardAction,
   loadOrganizationsAction,
   updateAgentAction,
   updateOrganizationAction,
@@ -24,11 +25,9 @@ import type { AgentForm } from "./dialogs/create-agent-modal";
 import type { OrganizationSetupDraft } from "./dialogs/create-organization-wizard";
 
 export const emptyDashboardData: DashboardBackendData = {
-  processing: { completed: 0, processing: 0, failed: 0 },
-  orchestratorConfigured: false,
-  organizationWidgetConfigured: false,
-  faqAgentWidgets: 0,
-  activity: [],
+  agents: { total: 0, active: 0, draft: 0, archived: 0 },
+  documents: { total: 0, ready: 0, processing: 0, failed: 0, chunks: 0 },
+  orchestrator: { active: false },
 };
 
 export function useProductController(initialData?: InitialAppData, initialView?: ViewKey) {
@@ -48,7 +47,13 @@ export function useProductController(initialData?: InitialAppData, initialView?:
   const [organizationSearch, setOrganizationSearch] = useState("");
   const [organizationTab, setOrganizationTab] = useState<OrganizationTab>("overview");
   const [agentTab, setAgentTab] = useState<AgentTab>("overview");
-  const [dashboardData, setDashboardData] = useState<Record<string, DashboardBackendData>>(useMockData ? initialDashboardData : {});
+  const [dashboardData, setDashboardData] = useState<Record<string, DashboardBackendData>>(
+    useMockData
+      ? initialDashboardData
+      : initialData?.organizations[0]
+        ? { [initialData.organizations[0].id]: initialData.dashboard }
+        : {},
+  );
   const [showCreate, setShowCreate] = useState(false);
   const [showOrganizationMenu, setShowOrganizationMenu] = useState(false);
   const [showOrganizationWizard, setShowOrganizationWizard] = useState(false);
@@ -67,6 +72,15 @@ export function useProductController(initialData?: InitialAppData, initialView?:
     enabled: !useMockData && Boolean(selectedOrganizationId),
     initialData: selectedOrganizationId === initialData?.organizations[0]?.id ? initialData.agentsPage : undefined,
     retry: 1, staleTime: Number.POSITIVE_INFINITY, refetchOnMount: false, refetchOnWindowFocus: false,
+  });
+  const dashboardQuery = useQuery({
+    queryKey: ["dashboard", selectedOrganizationId],
+    queryFn: () => loadDashboardAction(selectedOrganizationId),
+    enabled: !useMockData && Boolean(selectedOrganizationId),
+    initialData: selectedOrganizationId === initialData?.organizations[0]?.id ? initialData.dashboard : undefined,
+    retry: 1,
+    staleTime: 15_000,
+    refetchOnWindowFocus: false,
   });
 
   useEffect(() => {
@@ -98,6 +112,10 @@ export function useProductController(initialData?: InitialAppData, initialView?:
     setAgents((current) => [...current.filter((agent) => agent.organizationId !== selectedOrganizationId), ...loaded]);
     setSelectedAgentId((current) => loaded.some((agent) => agent.id === current) ? current : loaded[0]?.id ?? "");
   }, [agentsQuery.data, selectedOrganizationId]);
+  useEffect(() => {
+    if (!dashboardQuery.data || !selectedOrganizationId) return;
+    setDashboardData((current) => ({ ...current, [selectedOrganizationId]: dashboardQuery.data }));
+  }, [dashboardQuery.data, selectedOrganizationId]);
 
   const notify = (message: string) => {
     setToast(message);
@@ -125,13 +143,14 @@ export function useProductController(initialData?: InitialAppData, initialView?:
     const previous = selectedAgent;
     setAgents((current) => current.map((agent) => agent.id === previous.id ? { ...agent, ...updates, updated: "Saving…" } : agent));
     void updateAgentAction(previous.organizationId, previous.id, { ...(updates.name !== undefined ? { name: updates.name } : {}), ...(updates.description !== undefined ? { description: updates.description } : {}), ...(updates.status !== undefined ? { status: updates.status === "Live" ? "ACTIVE" as const : "DRAFT" as const, enabled: updates.status === "Live" } : {}), version: previous.version })
-      .then((saved) => { setAgents((current) => current.map((agent) => agent.id === saved.id ? mapAgent(saved) : agent)); notify(`${saved.name} updated`); })
+      .then((saved) => { setAgents((current) => current.map((agent) => agent.id === saved.id ? mapAgent(saved) : agent)); void queryClient.invalidateQueries({ queryKey: ["dashboard", previous.organizationId] }); notify(`${saved.name} updated`); })
       .catch((error) => { setAgents((current) => current.map((agent) => agent.id === previous.id ? previous : agent)); notify(apiErrorMessage(error)); });
   };
   const duplicateAgent = (source: Agent, openCreated = false) => {
     void duplicateAgentAction(source.organizationId, source.id).then((created) => {
       const mapped = mapAgent(created); setAgents((current) => [mapped, ...current]);
       if (openCreated) setSelectedAgentId(mapped.id);
+      void queryClient.invalidateQueries({ queryKey: ["dashboard", source.organizationId] });
       router.refresh(); notify(`${mapped.name} created as a draft`);
     }).catch((error) => notify(apiErrorMessage(error)));
   };
@@ -143,6 +162,7 @@ export function useProductController(initialData?: InitialAppData, initialView?:
       setAgents((current) => current.filter((agent) => agent.id !== target.id));
       if (selectedAgentId === target.id) setSelectedAgentId("");
       if (returnToList) changeView("agents");
+      void queryClient.invalidateQueries({ queryKey: ["dashboard", target.organizationId] });
       router.refresh(); setDeleteConfirmation(null); notify(`${target.name} deleted`);
     }).catch((error) => notify(apiErrorMessage(error))).finally(() => setDeletingAgent(false));
   };
@@ -171,9 +191,9 @@ export function useProductController(initialData?: InitialAppData, initialView?:
       }
       const created = { ...mapAgent(createdDto), docs: new Set(values.documentIds).size + uploadedCount };
       setAgents((current) => [created, ...current]); setSelectedAgentId(created.id); setAgentTab("overview"); setShowCreate(false);
-      setDashboardData((current) => ({ ...current, [selectedOrganization.id]: { ...(current[selectedOrganization.id] || emptyDashboardData), activity: [{ id: Date.now(), label: `${values.name} created`, context: "FAQ Agent", time: "Just now", kind: "agent" }, ...(current[selectedOrganization.id]?.activity || [])] } }));
       await queryClient.invalidateQueries({ queryKey: ["document-library", selectedOrganization.id] });
       await queryClient.invalidateQueries({ queryKey: ["documents", selectedOrganization.id] });
+      await queryClient.invalidateQueries({ queryKey: ["dashboard", selectedOrganization.id] });
       notify(uploadWarning ? `${values.name} created; some files could not be uploaded` : `${values.name} created as a draft`); changeView("agent"); router.refresh();
     } catch (error) { notify(apiErrorMessage(error)); }
   };
@@ -184,9 +204,8 @@ export function useProductController(initialData?: InitialAppData, initialView?:
     } catch (error) { notify(apiErrorMessage(error)); return; }
     setOrganizations((current) => [...current, created]); setSelectedOrganizationId(created.id);
     const warnings: string[] = [];
-    let orchestratorConfigured = false;
     if (setup.orchestrator) {
-      try { await configureOrchestratorAction(created.id, setup.orchestrator); orchestratorConfigured = true; }
+      try { await configureOrchestratorAction(created.id, setup.orchestrator); }
       catch { warnings.push("orchestrator setup"); }
     }
     let createdAgent: Agent | undefined;
@@ -203,8 +222,7 @@ export function useProductController(initialData?: InitialAppData, initialView?:
         await uploadDocumentsAction(formData);
       } catch { warnings.push("document upload"); }
     }
-    const activity = createdAgent ? [{ id: Date.now(), label: `${createdAgent.name} created`, context: "FAQ Agent", time: "Just now", kind: "agent" as const }] : [];
-    setDashboardData((current) => ({ ...current, [created.id]: { ...emptyDashboardData, orchestratorConfigured, activity } }));
+    setDashboardData((current) => ({ ...current, [created.id]: emptyDashboardData }));
     setShowOrganizationWizard(false); changeView("dashboard"); router.refresh();
     notify(warnings.length ? `${created.name} created; retry ${warnings.join(" and ")} from the dashboard` : `${created.name} created successfully`);
   };
@@ -214,6 +232,6 @@ export function useProductController(initialData?: InitialAppData, initialView?:
     selectedOrganizationId, setSelectedOrganizationId, organizationSearch, setOrganizationSearch, organizationTab, setOrganizationTab,
     agentTab, setAgentTab, dashboardData, setDashboardData, showCreate, setShowCreate, showOrganizationMenu, setShowOrganizationMenu,
     showOrganizationWizard, setShowOrganizationWizard, toast, deleteConfirmation, setDeleteConfirmation, deletingAgent,
-    organizationsQuery, notify, changeView, openAgent, saveOrganization, saveAgent, duplicateAgent, confirmDeleteAgent, createAgent, createOrganization,
+    organizationsQuery, dashboardQuery, notify, changeView, openAgent, saveOrganization, saveAgent, duplicateAgent, confirmDeleteAgent, createAgent, createOrganization,
   };
 }

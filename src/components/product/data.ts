@@ -18,16 +18,9 @@ export const initialAgents: Agent[] = [
 
 export const initialDashboardData: Record<string, DashboardBackendData> = {
   "1": {
-    processing: { completed: 80, processing: 3, failed: 1 },
-    orchestratorConfigured: true,
-    organizationWidgetConfigured: true,
-    faqAgentWidgets: 3,
-    activity: [
-      { id: 1, label: "pricing.pdf uploaded", context: "Customer Support", time: "12 min ago", kind: "document" },
-      { id: 2, label: "Customer Support updated", context: "FAQ Agent", time: "2 hours ago", kind: "agent" },
-      { id: 3, label: "Developer Docs created", context: "FAQ Agent", time: "Yesterday", kind: "agent" },
-      { id: 4, label: "Organization Widget configured", context: "Widget", time: "2 days ago", kind: "widget" },
-    ],
+    agents: { total: 5, active: 4, draft: 1, archived: 0 },
+    documents: { total: 84, ready: 80, processing: 3, failed: 1, chunks: 1240 },
+    orchestrator: { active: true },
   },
 };
 

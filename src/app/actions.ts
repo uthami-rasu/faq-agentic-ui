@@ -2,7 +2,7 @@
 
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
-import type { AgentDto, DocumentDto, NotificationDto, OrganizationDto, PaginatedResult } from "@/lib/api";
+import type { AgentDto, DashboardDto, DocumentDto, NotificationDto, OrchestratorConfigurationDto, OrganizationDto, PaginatedResult } from "@/lib/api";
 import {
   createAgent,
   createOrganization,
@@ -11,7 +11,9 @@ import {
   duplicateAgent,
   loadAgentsPage,
   loadDocumentsPage,
+  loadDashboard,
   loadNotifications,
+  loadOrchestratorConfiguration,
   loadOrganizations,
   markNotificationRead,
   replaceAgentDocuments,
@@ -67,6 +69,16 @@ export async function loadNotificationsAction(): Promise<NotificationDto[]> {
   return loadNotifications(await authorization());
 }
 
+export async function loadDashboardAction(organizationId: string): Promise<DashboardDto> {
+  return loadDashboard(organizationId, await authorization());
+}
+
+export async function loadOrchestratorConfigurationAction(
+  organizationId: string,
+): Promise<OrchestratorConfigurationDto> {
+  return loadOrchestratorConfiguration(organizationId, await authorization());
+}
+
 export async function markNotificationReadAction(notificationId: string, read = true): Promise<NotificationDto> {
   return markNotificationRead(notificationId, read, await authorization());
 }
@@ -83,13 +95,16 @@ export async function createOrganizationAction(input: {
 
 export async function configureOrchestratorAction(
   organizationId: string,
-  input: { welcomeMessage: string; systemPrompt: string },
-): Promise<void> {
-  await configureOrchestrator(organizationId, {
+  input: { welcomeMessage: string; systemPrompt: string; active?: boolean; agentIds?: string[] },
+): Promise<OrchestratorConfigurationDto> {
+  const configured = await configureOrchestrator(organizationId, {
     welcome_message: input.welcomeMessage,
     system_prompt: input.systemPrompt,
+    active: input.active,
+    agent_ids: input.agentIds,
   }, await authorization());
   revalidatePath("/");
+  return configured;
 }
 
 export async function updateOrganizationAction(

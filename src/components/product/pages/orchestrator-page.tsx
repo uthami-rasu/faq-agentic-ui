@@ -1,48 +1,91 @@
 "use client";
 
-import { useState } from "react";
-import { AlertCircle, ArrowRight, Bot, Check, CheckCircle2, Copy, Database, LayoutDashboard, Network, Pencil, Play, RotateCcw, Save, Send, Settings, ShieldCheck, Sparkles, UserRound, X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { AlertCircle, Bot, CheckCircle2, LoaderCircle, Network, Route, Save, ShieldCheck, Sparkles } from "lucide-react";
+import { configureOrchestratorAction, loadOrchestratorConfigurationAction } from "@/app/actions";
 import type { Agent, Notify } from "../types";
-import { AgentAvatar, PageHeading, Status } from "../shared";
+import { AgentAvatar, PageHeading } from "../shared";
+import { apiErrorMessage } from "../utils";
 
-type Props = { agents: Agent[]; organizationName: string; configured: boolean; notify: Notify; onSave: () => void };
+type Props = {
+  organizationId: string;
+  organizationName: string;
+  agents: Agent[];
+  notify: Notify;
+  onSaved: () => void;
+};
 
-export function OrchestratorPage({ agents, organizationName, configured, notify, onSave }: Props) {
-  const [section, setSection] = useState<"overview" | "configuration" | "test">("overview");
+const defaultPrompt = "Route each question to the enabled FAQ agent whose name and purpose best match the user's intent. If no agent is suitable, clearly explain that no matching knowledge area is available.";
+
+export function OrchestratorPage({ organizationId, organizationName, agents, notify, onSaved }: Props) {
+  const queryClient = useQueryClient();
+  const configurationQuery = useQuery({
+    queryKey: ["orchestrator", organizationId],
+    queryFn: () => loadOrchestratorConfigurationAction(organizationId),
+    enabled: Boolean(organizationId),
+    staleTime: 15_000,
+    refetchOnWindowFocus: false,
+  });
   const [welcome, setWelcome] = useState("Hi! How can I help you today?");
-  const [prompt, setPrompt] = useState("Route each question to the enabled FAQ agent whose name and description best match the user's intent. If no agent is suitable, explain that the organization does not have an agent for that topic.");
-  const [registeredIds, setRegisteredIds] = useState<string[]>(agents.filter((agent) => agent.status === "Live").map((agent) => agent.id));
-  const registeredAgents = agents.filter((agent) => registeredIds.includes(agent.id) && agent.status === "Live");
-  const toggleAgent = (id: string) => setRegisteredIds((current) => current.includes(id) ? current.filter((agentId) => agentId !== id) : [...current, id]);
-  return <div className="orchestrator-page">
-    <PageHeading eyebrow="Organization routing" title="AI Orchestrator" description="Configure one entry point that routes requests to the appropriate FAQ agent.">{section === "configuration" && <button className="primary-button" onClick={() => { onSave(); notify("Orchestrator configuration saved"); }}><Save size={16}/> Save changes</button>}{section !== "test" && <button className="secondary-button" onClick={() => setSection("test")}><Play size={16}/> Test routing</button>}</PageHeading>
-    <div className="context-tabs orchestrator-tabs"><button className={section === "overview" ? "active" : ""} onClick={() => setSection("overview")}><LayoutDashboard size={15}/>Overview</button><button className={section === "configuration" ? "active" : ""} onClick={() => setSection("configuration")}><Settings size={15}/>Configuration</button><button className={section === "test" ? "active" : ""} onClick={() => setSection("test")}><Play size={15}/>Test routing</button></div>
-    {section === "overview" && <><div className="ownership-note"><Network size={16}/><p><b>The orchestrator only routes requests.</b> It owns no documents, embeddings, or retrieval index. The selected FAQ agent searches its own knowledge and creates the response.</p></div><div className="orchestrator-overview-grid"><section className="panel orchestrator-flow-panel"><div className="panel-title"><div><h2>Request flow</h2><p>How an organization-level question is handled.</p></div><span className="configuration-state"><span className={configured ? "configured" : "unconfigured"}><i/>{configured ? "Active" : "Not configured"}</span></span></div><div className="orchestrator-flow"><div><span className="flow-icon user"><UserRound size={19}/></span><b>{organizationName} request</b><small>Question enters from the organization widget or playground</small></div><ArrowRight size={18}/><div><span className="flow-icon router"><Network size={19}/></span><b>AI Orchestrator</b><small>Compares intent with the enabled agent registry</small></div><ArrowRight size={18}/><div><span className="flow-icon agent"><Bot size={19}/></span><b>Selected FAQ Agent</b><small>Searches its own documents and returns a response</small></div></div></section><aside className="panel orchestrator-status-panel"><div className="panel-title"><div><h2>Current configuration</h2><p>Backend-owned orchestrator state.</p></div></div><div className="orchestrator-status-list"><span><small>Status</small><b className={configured ? "active-value" : ""}>{configured && <i/>}{configured ? "Active" : "Not configured"}</b></span><span><small>Registered agents</small><b>{registeredAgents.length}</b></span><span><small>Available FAQ agents</small><b>{agents.filter((agent) => agent.status === "Live").length}</b></span><span><small>Welcome message</small><b>{welcome ? "Configured" : "Missing"}</b></span><span><small>System prompt</small><b>{prompt ? "Configured" : "Missing"}</b></span></div><button className="secondary-button full-button" onClick={() => setSection("configuration")}><Pencil size={15}/> {configured ? "Edit configuration" : "Configure orchestrator"}</button></aside></div><section className="panel registered-overview"><div className="panel-title"><div><h2>Registered FAQ Agents</h2><p>Only enabled and registered agents can receive routed requests.</p></div><button className="text-button" onClick={() => setSection("configuration")}>Manage registry <ArrowRight size={14}/></button></div><div className="registered-agent-grid">{registeredAgents.map((agent) => <div key={agent.id}><AgentAvatar agent={agent}/><span><b>{agent.name}</b><small>{agent.description}</small></span><CheckCircle2 size={16}/></div>)}{registeredAgents.length === 0 && <div className="registry-empty"><AlertCircle size={17}/>No agents are currently registered for routing.</div>}</div></section></>}
-    {section === "configuration" && <div className="orchestrator-config-grid"><section className="panel form-panel"><div className="panel-title"><div><h2>Messages and instructions</h2><p>Configure the organization-level welcome and routing rules.</p></div></div><label className="field"><span>Welcome message</span><textarea value={welcome} onChange={(event) => setWelcome(event.target.value)} rows={3}/><small>Displayed before the visitor sends their first question.</small></label><label className="field"><span>System prompt</span><textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} rows={8}/><small>{prompt.length} / 2,000 characters</small></label><div className="prompt-guardrail"><ShieldCheck size={17}/><p>Use this prompt only for routing behavior. Answer instructions and knowledge boundaries belong in each FAQ agent&apos;s prompt.</p></div></section><section className="panel registry-panel"><div className="panel-title"><div><h2>Agent registry</h2><p>{registeredAgents.length} of {agents.length} agents registered</p></div></div><div className="registry-explainer"><Database size={15}/><span>Register agents by responsibility. The orchestrator uses each agent&apos;s name and description when choosing a route.</span></div>{agents.map((agent) => <div className="registry-row" key={agent.id}><AgentAvatar agent={agent}/><span><strong>{agent.name}</strong><small>{agent.description}</small></span><Status status={agent.status}/><label className="switch"><input type="checkbox" checked={registeredIds.includes(agent.id)} disabled={agent.status !== "Live"} onChange={() => toggleAgent(agent.id)}/><i/></label></div>)}</section></div>}
-    {section === "test" && <OrchestratorTestFlow agents={registeredAgents} welcome={welcome} notify={notify}/>} 
-  </div>;
-}
+  const [prompt, setPrompt] = useState(defaultPrompt);
+  const [saving, setSaving] = useState(false);
+  const activeAgents = agents.filter((agent) => agent.status === "Live");
+  const configured = configurationQuery.data?.active ?? false;
 
-function OrchestratorTestFlow({ agents, welcome, notify }: { agents: Agent[]; welcome: string; notify: Notify }) {
-  type TestTurn = { id: number; question: string; agent?: Agent; answer: string; routeReason: string };
-  const [input, setInput] = useState("");
-  const [turns, setTurns] = useState<TestTurn[]>([]);
-  const [routing, setRouting] = useState(false);
-  const routeQuestion = (question: string) => {
-    const lower = question.toLowerCase();
-    const preferences = lower.match(/invoice|billing|price|pricing|plan|subscription/) ? ["billing", "sales"] : lower.match(/employee|benefit|leave|policy|handbook/) ? ["employee"] : lower.match(/api|developer|sdk|key|integration/) ? ["developer"] : lower.match(/buy|purchase|sales|capabilit/) ? ["sales"] : ["customer", "support"];
-    return agents.find((agent) => preferences.some((term) => `${agent.name} ${agent.description}`.toLowerCase().includes(term)));
+  useEffect(() => {
+    const configuration = configurationQuery.data;
+    if (!configuration) return;
+    setWelcome(configuration.welcome_message || "Hi! How can I help you today?");
+    setPrompt(configuration.system_prompt || defaultPrompt);
+  }, [configurationQuery.data]);
+
+  const save = async () => {
+    if (!welcome.trim() || !prompt.trim() || saving) return;
+    setSaving(true);
+    try {
+      const saved = await configureOrchestratorAction(organizationId, {
+        welcomeMessage: welcome.trim(),
+        systemPrompt: prompt.trim(),
+      });
+      queryClient.setQueryData(["orchestrator", organizationId], saved);
+      await queryClient.invalidateQueries({ queryKey: ["dashboard", organizationId] });
+      onSaved();
+      notify("Orchestrator settings saved");
+    } catch (error) {
+      notify(apiErrorMessage(error));
+    } finally {
+      setSaving(false);
+    }
   };
-  const submit = () => {
-    const question = input.trim();
-    if (!question || routing) return;
-    setRouting(true); setInput("");
-    window.setTimeout(() => {
-      const agent = routeQuestion(question);
-      setTurns((current) => [...current, { id: Date.now(), question, agent, answer: agent ? `${agent.name} received this test request. In production, it would search its ${agent.docs} connected knowledge documents and generate the answer.` : "No enabled FAQ agent is registered for this topic.", routeReason: agent ? `The question matched the configured purpose of ${agent.name}.` : "The registry has no enabled agent available for routing." }]);
-      setRouting(false);
-    }, 550);
-  };
-  const latest = turns[turns.length - 1];
-  return <div className="orchestrator-test-layout"><section className="panel routing-chat"><div className="routing-chat-head"><span><Network size={18}/></span><div><b>Organization routing test</b><small>Tests are not saved as production conversations.</small></div><button className="secondary-button" onClick={() => setTurns([])}><RotateCcw size={14}/>New test</button></div><div className="routing-chat-body">{turns.length === 0 && <div className="routing-welcome"><span><Sparkles size={22}/></span><h2>{welcome || "How can I help?"}</h2><p>Ask a question to see which registered FAQ agent receives it.</p><div><button onClick={() => setInput("Where can I find my invoices?")}>Where can I find my invoices?</button><button onClick={() => setInput("How do I reset my API key?")}>How do I reset my API key?</button><button onClick={() => setInput("What is the leave policy?")}>What is the leave policy?</button></div></div>}{turns.map((turn) => <div className="routing-turn" key={turn.id}><div className="route-question"><p>{turn.question}</p><span className="tiny-avatar">OS</span></div><div className="route-answer"><span className="bot-avatar"><Bot size={15}/></span><div><div className="routed-by"><Network size={13}/>Routed to <b>{turn.agent?.name || "No agent"}</b></div><p>{turn.answer}</p></div></div></div>)}{routing && <div className="routing-indicator"><span/><span/><span/>Orchestrator is selecting an agent</div>}</div><div className="routing-composer"><textarea rows={2} value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); submit(); } }} placeholder="Ask an organization-level question..."/><button onClick={submit} disabled={!input.trim() || routing}><Send size={17}/></button></div></section><aside className="panel route-inspector"><div className="panel-title"><div><h2>Routing trace</h2><p>Visible only while testing.</p></div></div>{latest ? <><div className="trace-agent"><AgentAvatar agent={latest.agent || { id: "none", name: "No agent", description: "", docs: 0, updated: "", status: "Draft", color: "orange", initials: "—", organizationId: "none", version: 0 }}/><div><small>Selected FAQ Agent</small><b>{latest.agent?.name || "No route available"}</b></div></div><div className="trace-steps"><div className="complete"><span><Check size={13}/></span><p><b>Request received</b><small>Organization playground</small></p></div><div className="complete"><span><Check size={13}/></span><p><b>Registry evaluated</b><small>{agents.length} enabled agents considered</small></p></div><div className={latest.agent ? "complete" : "failed"}><span>{latest.agent ? <Check size={13}/> : <X size={13}/>}</span><p><b>{latest.agent ? "Agent selected" : "No route found"}</b><small>{latest.routeReason}</small></p></div><div className={latest.agent ? "complete" : "pending"}><span>{latest.agent ? <Check size={13}/> : "4"}</span><p><b>Agent invoked</b><small>{latest.agent ? "Direct agent mode" : "Not invoked"}</small></p></div></div><button className="secondary-button full-button" onClick={() => { navigator.clipboard?.writeText(latest.routeReason); notify("Routing reason copied"); }}><Copy size={14}/>Copy routing reason</button></> : <div className="trace-empty"><Network size={24}/><p>Send a test question to inspect the routing path.</p></div>}</aside></div>;
+
+  return <div className="orchestrator-page orchestrator-clean">
+    <PageHeading eyebrow="Organization routing" title="AI Orchestrator" description={`Set the routing instructions used when a question enters ${organizationName}.`}>
+      <button className="primary-button" disabled={saving || !welcome.trim() || !prompt.trim()} onClick={save}>{saving ? <LoaderCircle className="spin" size={16}/> : <Save size={16}/>} {saving ? "Saving…" : "Save settings"}</button>
+    </PageHeading>
+
+    {configurationQuery.isError && <div className="orchestrator-load-error"><AlertCircle size={17}/><span>Current settings could not be loaded.</span><button onClick={() => configurationQuery.refetch()}>Try again</button></div>}
+
+    <div className="orchestrator-essential-grid">
+      <section className="panel orchestrator-form-card">
+        <header><span><Route size={20}/></span><div><h2>Routing essentials</h2><p>Only organization-level routing belongs here. Answer behavior remains inside each FAQ agent.</p></div><em className={configured ? "active" : "inactive"}><i/>{configurationQuery.isLoading ? "Loading" : configured ? "Active" : "Not active"}</em></header>
+        <label className="premium-field"><span><b>Welcome message</b><small>Shown before a visitor asks a question</small></span><textarea rows={3} value={welcome} maxLength={1000} onChange={(event) => setWelcome(event.target.value)} /><em>{welcome.length}/1,000</em></label>
+        <label className="premium-field"><span><b>Routing instructions</b><small>Explain how to select the most relevant FAQ agent</small></span><textarea rows={9} value={prompt} maxLength={4000} onChange={(event) => setPrompt(event.target.value)} /><em>{prompt.length}/4,000</em></label>
+        <div className="orchestrator-boundary"><ShieldCheck size={18}/><div><b>Clear responsibility boundary</b><p>The orchestrator chooses an agent. The selected agent searches only its own linked documents and generates the response.</p></div></div>
+      </section>
+
+      <aside className="orchestrator-side-stack">
+        <section className="panel routing-explainer">
+          <div className="panel-title"><div><h2>Request path</h2><p>The actual routing boundary.</p></div></div>
+          <div className="routing-step"><span>1</span><div><b>Receive question</b><small>From the organization entry point</small></div></div>
+          <div className="routing-step"><span>2</span><div><b>Select an active agent</b><small>Using its name, purpose, and these instructions</small></div></div>
+          <div className="routing-step"><span>3</span><div><b>Use agent knowledge</b><small>Only documents linked to that FAQ agent</small></div></div>
+        </section>
+        <section className="panel eligible-agents">
+          <div className="panel-title"><div><h2>Eligible FAQ agents</h2><p>{activeAgents.length} active agent{activeAgents.length === 1 ? "" : "s"} available for routing.</p></div><Sparkles size={18}/></div>
+          <div>{activeAgents.slice(0, 5).map((agent) => <span key={agent.id}><AgentAvatar agent={agent}/><span><b>{agent.name}</b><small>{agent.description || "No purpose provided"}</small></span><CheckCircle2 size={16}/></span>)}{activeAgents.length === 0 && <p className="eligible-empty"><Bot size={18}/>Activate an FAQ agent before enabling organization routing.</p>}</div>
+        </section>
+      </aside>
+    </div>
+  </div>;
 }

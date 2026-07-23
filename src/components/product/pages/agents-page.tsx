@@ -75,7 +75,7 @@ export function AgentsPage({ agents, organizationId, search, setSearch, ssrPage,
     startTransition(() => router.replace(`${window.location.pathname}?${params}`, { scroll: false }));
   };
 
-  return <>
+  return <div className="agents-page">
     <PageHeading eyebrow="Knowledge team" title="FAQ Agents" description="Build specialized AI agents grounded in your company knowledge."><button className="secondary-button"><SlidersHorizontal size={16}/> Filters</button><button className="primary-button" onClick={create}><Plus size={17}/> Create agent</button></PageHeading>
     <div className="agent-page-summary"><div><WandSparkles size={20}/><span><strong>Give every question an expert</strong><small>Each agent owns its knowledge, instructions, playground, and widget.</small></span></div>{agents[0] && <button onClick={() => openAgent(agents[0], "playground")}>Try an agent <ArrowRight size={14}/></button>}</div>
     <div className="agents-toolbar"><label><Search size={16}/><input aria-label="Search FAQ agents" placeholder="Search agents" value={search} onChange={(event) => setSearch(event.target.value)}/>{search && <button aria-label="Clear agent search" className="clear-agent-search" onClick={() => setSearch("")}><X size={14}/></button>}</label><span aria-live="polite">{isPending && !useMockData ? "Searching…" : `${totalItems} ${totalItems === 1 ? "agent" : "agents"}`}</span><div className="view-toggle" aria-label="Agent layout"><button aria-label="Grid view" aria-pressed={layout === "grid"} className={layout === "grid" ? "selected" : ""} onClick={() => setLayout("grid")}><LayoutDashboard size={15}/></button><button aria-label="List view" aria-pressed={layout === "list"} className={layout === "list" ? "selected" : ""} onClick={() => setLayout("list")}><Menu size={15}/></button></div></div>
@@ -89,5 +89,5 @@ export function AgentsPage({ agents, organizationId, search, setSearch, ssrPage,
     </div>
     {visibleAgents.length === 0 && !isPending && <div className="agents-empty"><Search size={22}/><h2>No agents found</h2><p>{search ? `No FAQ agents match “${search}”.` : "Create your first FAQ agent to get started."}</p>{search ? <button className="secondary-button" onClick={() => setSearch("")}>Clear search</button> : <button className="primary-button" onClick={create}><Plus size={16}/> Create agent</button>}</div>}
     {!showShimmer && totalPages > 1 && <nav className="agents-pagination" aria-label="FAQ agent pages"><span>Showing {firstVisible}–{lastVisible} of {totalItems}</span><div><button aria-label="Previous page" disabled={page === 1} onClick={() => goToPage(Math.max(1, page - 1))}><ChevronLeft size={16}/></button>{pageButtons.map((number) => <button key={number} aria-label={`Page ${number}`} aria-current={number === page ? "page" : undefined} className={number === page ? "active" : ""} onClick={() => goToPage(number)}>{number}</button>)}<button aria-label="Next page" disabled={page === totalPages} onClick={() => goToPage(Math.min(totalPages, page + 1))}><ChevronRight size={16}/></button></div></nav>}
-  </>;
+  </div>;
 }

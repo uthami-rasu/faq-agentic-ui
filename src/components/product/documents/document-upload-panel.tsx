@@ -35,6 +35,7 @@ export function DocumentUploadPanel({ organizationId, agentId, notify, compact, 
       changeFiles([]);
       await queryClient.invalidateQueries({ queryKey: ["document-library", organizationId] });
       await queryClient.invalidateQueries({ queryKey: ["documents", organizationId] });
+      await queryClient.invalidateQueries({ queryKey: ["dashboard", organizationId] });
       const failed = created.filter((document) => document.status === "FAILED").length;
       notify(failed ? `${failed} document upload${failed === 1 ? "" : "s"} failed` : `${created.length} document${created.length === 1 ? "" : "s"} uploaded`);
     } catch (error) {

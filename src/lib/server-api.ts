@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { AgentDto, AiModelDto, DocumentDto, InitialAppData, NotificationDto, OrganizationDto, PaginatedResult, PaginationDto } from "@/lib/api";
+import type { AgentDto, AiModelDto, DashboardDto, DocumentDto, InitialAppData, NotificationDto, OrchestratorConfigurationDto, OrganizationDto, PaginatedResult, PaginationDto } from "@/lib/api";
 
 const API_BASE_URL = (process.env.API_BASE_URL ?? "http://localhost:8080/api/v1").replace(/\/$/, "");
 
@@ -60,6 +60,21 @@ export async function loadAiModels(userAuthorization?: string): Promise<AiModelD
 
 export async function loadNotifications(userAuthorization?: string): Promise<NotificationDto[]> {
   return (await requestBackend<NotificationDto[]>("/notifications?limit=20", userAuthorization)).data;
+}
+
+export async function loadDashboard(organizationId: string, userAuthorization?: string): Promise<DashboardDto> {
+  return (await requestBackend<DashboardDto>(
+    `/organizations/${encodeURIComponent(organizationId)}/dashboard`, userAuthorization,
+  )).data;
+}
+
+export async function loadOrchestratorConfiguration(
+  organizationId: string,
+  userAuthorization?: string,
+): Promise<OrchestratorConfigurationDto> {
+  return (await requestBackend<OrchestratorConfigurationDto>(
+    `/organizations/${encodeURIComponent(organizationId)}/orchestrator`, userAuthorization,
+  )).data;
 }
 
 function paginatedAgents(payload: ApiEnvelope<AgentDto[]>, page: number, pageSize: number): PaginatedResult<AgentDto> {
@@ -146,15 +161,21 @@ export async function loadInitialAppData(
       notifications,
       aiModels: modelCatalog.models,
       aiModelsAvailable: modelCatalog.available,
+      dashboard: {
+        agents: { total: 0, active: 0, draft: 0, archived: 0 },
+        documents: { total: 0, ready: 0, processing: 0, failed: 0, chunks: 0 },
+        orchestrator: { active: false },
+      },
       faqQuery: { search, page, pageSize },
       documentQuery: { search: documentSearch, agentId: documentAgentId, page: documentPage, pageSize: documentPageSize },
     };
   }
 
-  const [agentsPage, faqAgentsPage, documentsPage, modelCatalog, notifications] = await Promise.all([
+  const [agentsPage, faqAgentsPage, documentsPage, dashboard, modelCatalog, notifications] = await Promise.all([
     loadAgentsPage(organizationId, { page: 1, pageSize: 100 }, userAuthorization),
     loadAgentsPage(organizationId, { search, page, pageSize }, userAuthorization),
     loadDocumentsPage(organizationId, { search: documentSearch, agentId: documentAgentId, page: documentPage, pageSize: documentPageSize }, userAuthorization),
+    loadDashboard(organizationId, userAuthorization),
     modelsPromise,
     notificationsPromise,
   ]);
@@ -166,6 +187,7 @@ export async function loadInitialAppData(
     notifications,
     aiModels: modelCatalog.models,
     aiModelsAvailable: modelCatalog.available,
+    dashboard,
     faqQuery: { search, page, pageSize },
     documentQuery: { search: documentSearch, agentId: documentAgentId, page: documentPage, pageSize: documentPageSize },
   };
@@ -180,11 +202,11 @@ export async function createOrganization(
 
 export async function configureOrchestrator(
   organizationId: string,
-  input: { welcome_message: string; system_prompt: string },
+  input: { welcome_message: string; system_prompt: string; active?: boolean; agent_ids?: string[] },
   userAuthorization?: string,
-): Promise<void> {
-  await requestBackend<unknown>(`/organizations/${encodeURIComponent(organizationId)}/orchestrator`,
-    userAuthorization, { method: "PUT", body: JSON.stringify(input) });
+): Promise<OrchestratorConfigurationDto> {
+  return (await requestBackend<OrchestratorConfigurationDto>(`/organizations/${encodeURIComponent(organizationId)}/orchestrator`,
+    userAuthorization, { method: "PUT", body: JSON.stringify(input) })).data;
 }
 
 export async function updateOrganization(

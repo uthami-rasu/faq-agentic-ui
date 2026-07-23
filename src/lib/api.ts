@@ -79,6 +79,24 @@ export type NotificationDto = {
   created_at: string;
 };
 
+export type DashboardDto = {
+  agents: { total: number; active: number; draft: number; archived: number };
+  documents: { total: number; ready: number; processing: number; failed: number; chunks: number };
+  orchestrator: { active: boolean };
+};
+
+export type OrchestratorConfigurationDto = {
+  id: string | null;
+  organization_id: string;
+  welcome_message: string;
+  system_prompt: string;
+  fallback_message: string;
+  routing_mode: string;
+  active: boolean;
+  agent_ids: string[];
+  version: number;
+};
+
 export type InitialAppData = {
   organizations: OrganizationDto[];
   agentsPage: PaginatedResult<AgentDto>;
@@ -87,6 +105,7 @@ export type InitialAppData = {
   notifications: NotificationDto[];
   aiModels: AiModelDto[];
   aiModelsAvailable: boolean;
+  dashboard: DashboardDto;
   faqQuery: {
     search: string;
     page: number;
