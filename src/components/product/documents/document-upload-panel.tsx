@@ -2,17 +2,27 @@
 
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { LoaderCircle, Upload } from "lucide-react";
+import { Info, LoaderCircle, Upload } from "lucide-react";
 import { uploadDocumentsAction } from "@/app/actions";
 import type { Notify } from "../types";
 import { FileDropField } from "./file-drop-field";
 
-type Props = { organizationId: string; agentId?: string; notify: Notify; compact?: boolean };
+type Props = {
+  organizationId: string;
+  agentId?: string;
+  notify: Notify;
+  compact?: boolean;
+  onStagedFilesChange?: (count: number) => void;
+};
 
-export function DocumentUploadPanel({ organizationId, agentId, notify, compact }: Props) {
+export function DocumentUploadPanel({ organizationId, agentId, notify, compact, onStagedFilesChange }: Props) {
   const [files, setFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
   const queryClient = useQueryClient();
+  const changeFiles = (next: File[]) => {
+    setFiles(next);
+    onStagedFilesChange?.(next.length);
+  };
   const upload = async () => {
     if (!files.length) return;
     setUploading(true);
@@ -22,7 +32,7 @@ export function DocumentUploadPanel({ organizationId, agentId, notify, compact }
     if (agentId) formData.append("agent_ids", agentId);
     try {
       const created = await uploadDocumentsAction(formData);
-      setFiles([]);
+      changeFiles([]);
       await queryClient.invalidateQueries({ queryKey: ["document-library", organizationId] });
       await queryClient.invalidateQueries({ queryKey: ["documents", organizationId] });
       const failed = created.filter((document) => document.status === "FAILED").length;
@@ -33,5 +43,5 @@ export function DocumentUploadPanel({ organizationId, agentId, notify, compact }
       setUploading(false);
     }
   };
-  return <div className="document-upload-panel"><FileDropField files={files} onChange={setFiles} compact={compact}/>{files.length > 0 && <button type="button" className="primary-button" disabled={uploading} onClick={upload}>{uploading ? <LoaderCircle className="spin" size={16}/> : <Upload size={16}/>} {uploading ? "Uploading…" : `Upload ${files.length} file${files.length === 1 ? "" : "s"}`}</button>}</div>;
+  return <div className={`document-upload-panel ${files.length ? "has-files" : ""}`}><FileDropField files={files} onChange={changeFiles} compact={compact} disabled={uploading} pendingLabel={uploading ? "Uploading to your library…" : "Not uploaded yet"}/>{files.length > 0 && <div className="document-upload-actions" aria-live="polite"><p><Info size={16}/><span><b>{uploading ? "Upload in progress" : "These files are staged locally"}</b><small>{uploading ? "Keep this page open until the upload finishes." : "They won’t appear in your document library until you upload them."}</small></span></p><button type="button" className="primary-button" disabled={uploading} onClick={upload}>{uploading ? <LoaderCircle className="spin" size={16}/> : <Upload size={16}/>} {uploading ? "Uploading…" : `Upload ${files.length} to library`}</button></div>}</div>;
 }

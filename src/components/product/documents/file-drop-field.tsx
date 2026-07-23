@@ -1,12 +1,18 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { FileText, FileUp, X } from "lucide-react";
+import { Files, FileText, FileUp, Trash2, X } from "lucide-react";
 
-type Props = { files: File[]; onChange: (files: File[]) => void; compact?: boolean };
+type Props = {
+  files: File[];
+  onChange: (files: File[]) => void;
+  compact?: boolean;
+  disabled?: boolean;
+  pendingLabel?: string;
+};
 const accepted = ".pdf,.txt,.md,.markdown";
 
-export function FileDropField({ files, onChange, compact = false }: Props) {
+export function FileDropField({ files, onChange, compact = false, disabled = false, pendingLabel = "Not uploaded yet" }: Props) {
   const input = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
   const add = (incoming: FileList | null) => {
@@ -19,11 +25,15 @@ export function FileDropField({ files, onChange, compact = false }: Props) {
     });
     onChange(next.slice(0, 10));
   };
+  const totalSize = files.reduce((sum, file) => sum + file.size, 0);
 
-  return <div className={`file-drop-field ${compact ? "compact" : ""}`}>
-    <button type="button" className={`drop-zone ${dragging ? "dragging" : ""}`} onClick={() => input.current?.click()} onDragOver={(event) => { event.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={(event) => { event.preventDefault(); setDragging(false); add(event.dataTransfer.files); }}><span className="upload-orbit"><FileUp size={22}/></span><div><strong>Drop files here or click to browse</strong><small>PDF, TXT, MD, or Markdown · 25 MB each · 10 files max</small></div><span className="browse-button">Browse files</span></button>
-    <input ref={input} hidden type="file" multiple accept={accepted} onChange={(event) => { add(event.target.files); event.target.value = ""; }}/>
-    {files.length > 0 && <div className="file-drop-queue">{files.map((file) => <span key={`${file.name}-${file.size}`}><FileText size={14}/><b>{file.name}</b><small>{formatBytes(file.size)}</small><button type="button" aria-label={`Remove ${file.name}`} onClick={() => onChange(files.filter((item) => item !== file))}><X size={13}/></button></span>)}</div>}
+  return <div className={`file-drop-field ${compact ? "compact" : ""} ${files.length ? "has-files" : ""}`}>
+    <button type="button" disabled={disabled} className={`drop-zone ${dragging ? "dragging" : ""}`} onClick={() => input.current?.click()} onDragOver={(event) => { event.preventDefault(); if (!disabled) setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={(event) => { event.preventDefault(); setDragging(false); if (!disabled) add(event.dataTransfer.files); }}><span className="upload-orbit"><FileUp size={22}/></span><div><strong>{files.length ? "Add more files" : "Drop files here or click to browse"}</strong><small>PDF, TXT, MD, or Markdown · 25 MB each · 10 files max</small></div><span className="browse-button">Browse files</span></button>
+    <input ref={input} hidden disabled={disabled} type="file" multiple accept={accepted} onChange={(event) => { add(event.target.files); event.target.value = ""; }}/>
+    {files.length > 0 && <section className="file-selection-card" aria-label="Files selected for upload">
+      <header><span><i><Files size={16}/></i><span><b>{files.length} file{files.length === 1 ? "" : "s"} ready</b><small>{formatBytes(totalSize)} total · {pendingLabel}</small></span></span><button type="button" disabled={disabled} onClick={() => onChange([])}><Trash2 size={13}/> Clear</button></header>
+      <div className="file-drop-queue">{files.map((file) => <span key={`${file.name}-${file.size}`}><i><FileText size={14}/></i><span><b>{file.name}</b><small>{formatBytes(file.size)}</small></span><em>Ready</em><button type="button" disabled={disabled} aria-label={`Remove ${file.name}`} onClick={() => onChange(files.filter((item) => item !== file))}><X size={13}/></button></span>)}</div>
+    </section>}
   </div>;
 }
 

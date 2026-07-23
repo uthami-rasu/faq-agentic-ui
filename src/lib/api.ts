@@ -54,6 +54,9 @@ export type DocumentDto = {
   file_name: string;
   normalized_file_name: string;
   mime_type: string;
+  storage_bucket: string | null;
+  storage_key: string;
+  storage_uri: string | null;
   size_bytes: number;
   status: "UPLOADING" | "UPLOADED" | "PROCESSING" | "READY" | "FAILED";
   chunk_count: number | null;

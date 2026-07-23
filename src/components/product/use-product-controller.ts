@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createAgentAction,
   configureOrchestratorAction,
@@ -33,6 +33,7 @@ export const emptyDashboardData: DashboardBackendData = {
 
 export function useProductController(initialData?: InitialAppData, initialView?: ViewKey) {
   const dispatch = useAppDispatch();
+  const queryClient = useQueryClient();
   const router = useRouter();
   const { view: storedView, theme, sidebarOpen } = useAppSelector((state) => state.ui);
   const [applyingInitialView, setApplyingInitialView] = useState(Boolean(initialView));
@@ -148,10 +149,32 @@ export function useProductController(initialData?: InitialAppData, initialView?:
   const createAgent = async (values: AgentForm) => {
     if (!selectedOrganization) return;
     try {
-      const created = mapAgent(await createAgentAction(selectedOrganization.id, values));
+      const createdDto = await createAgentAction(selectedOrganization.id, {
+        name: values.name,
+        description: values.description,
+        documentIds: values.documentIds,
+      });
+      let uploadedCount = 0;
+      let uploadWarning = false;
+      if (values.files.length) {
+        const formData = new FormData();
+        formData.set("organization_id", selectedOrganization.id);
+        values.files.forEach((file) => formData.append("files", file));
+        formData.append("agent_ids", createdDto.id);
+        try {
+          const uploaded = await uploadDocumentsAction(formData);
+          uploadedCount = uploaded.filter((document) => document.status !== "FAILED").length;
+          uploadWarning = uploaded.some((document) => document.status === "FAILED");
+        } catch {
+          uploadWarning = true;
+        }
+      }
+      const created = { ...mapAgent(createdDto), docs: new Set(values.documentIds).size + uploadedCount };
       setAgents((current) => [created, ...current]); setSelectedAgentId(created.id); setAgentTab("overview"); setShowCreate(false);
       setDashboardData((current) => ({ ...current, [selectedOrganization.id]: { ...(current[selectedOrganization.id] || emptyDashboardData), activity: [{ id: Date.now(), label: `${values.name} created`, context: "FAQ Agent", time: "Just now", kind: "agent" }, ...(current[selectedOrganization.id]?.activity || [])] } }));
-      notify(`${values.name} created as a draft`); changeView("agent"); router.refresh();
+      await queryClient.invalidateQueries({ queryKey: ["document-library", selectedOrganization.id] });
+      await queryClient.invalidateQueries({ queryKey: ["documents", selectedOrganization.id] });
+      notify(uploadWarning ? `${values.name} created; some files could not be uploaded` : `${values.name} created as a draft`); changeView("agent"); router.refresh();
     } catch (error) { notify(apiErrorMessage(error)); }
   };
   const createOrganization = async (organization: Omit<Organization, "id" | "version">, setup: OrganizationSetupDraft) => {

@@ -8,21 +8,24 @@ import { ArrowRight, BookOpen, Check, LoaderCircle, SlidersHorizontal, Sparkles,
 import { z } from "zod";
 import type { DocumentDto, PaginatedResult } from "@/lib/api";
 import { DocumentPicker } from "../documents/document-picker";
+import { FileDropField } from "../documents/file-drop-field";
 
 const agentSchema = z.object({
   name: z.string().trim().min(2, "Give your agent a name").max(80, "Keep the name under 80 characters"),
   description: z.string().trim().min(8, "Add a short description").max(240, "Keep the description under 240 characters"),
   documentIds: z.array(z.string()).max(100),
+  files: z.array(z.custom<File>((value) => typeof File !== "undefined" && value instanceof File)).max(10),
 });
 export type AgentForm = z.infer<typeof agentSchema>;
 
 type Props = { close: () => void; add: (values: AgentForm) => Promise<void>; organizationId: string; initialDocuments?: PaginatedResult<DocumentDto> };
 
 export function CreateAgentModal({ close, add, organizationId, initialDocuments }: Props) {
-  const { register, handleSubmit, watch, setValue, formState: { errors, isSubmitting } } = useForm<AgentForm>({ resolver: zodResolver(agentSchema), defaultValues: { name: "", description: "", documentIds: [] } });
+  const { register, handleSubmit, watch, setValue, formState: { errors, isSubmitting } } = useForm<AgentForm>({ resolver: zodResolver(agentSchema), defaultValues: { name: "", description: "", documentIds: [], files: [] } });
   const name = watch("name");
   const description = watch("description");
   const documentIds = watch("documentIds");
+  const files = watch("files");
 
   useEffect(() => {
     const closeOnEscape = (event: KeyboardEvent) => { if (event.key === "Escape" && !isSubmitting) close(); };
@@ -34,10 +37,10 @@ export function CreateAgentModal({ close, add, organizationId, initialDocuments 
     <motion.form className="modal agent-create-modal" aria-labelledby="create-agent-title" onSubmit={handleSubmit(add)} initial={{ opacity: 0, scale: .975, y: 18 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: .98, y: 10 }} transition={{ type: "spring", stiffness: 360, damping: 30 }}>
       <header className="agent-create-head"><div className="agent-create-mark"><Sparkles size={20}/></div><div><span className="agent-create-kicker">New knowledge agent</span><h2 id="create-agent-title">Create your FAQ expert</h2><p>Start with a clear purpose. Knowledge and behavior can be refined next.</p></div><button type="button" className="icon-button" aria-label="Close create agent dialog" disabled={isSubmitting} onClick={close}><X size={18}/></button></header>
       <div className="agent-create-layout">
-        <section className="agent-create-form"><label className={`field ${errors.name ? "has-error" : ""}`}><span><b>Agent name</b><small>{name.length}/80</small></span><input autoFocus autoComplete="off" placeholder="e.g. Product support expert" {...register("name")}/>{errors.name && <small>{errors.name.message}</small>}</label><label className={`field ${errors.description ? "has-error" : ""}`}><span><b>Purpose</b><small>{description.length}/240</small></span><textarea rows={4} placeholder="Describe the questions this agent should answer…" {...register("description")}/>{errors.description && <small>{errors.description.message}</small>}</label><DocumentPicker organizationId={organizationId} initialPage={initialDocuments} selectedIds={documentIds} onChange={(ids) => setValue("documentIds", ids)}/></section>
+        <section className="agent-create-form"><label className={`field ${errors.name ? "has-error" : ""}`}><span><b>Agent name</b><small>{name.length}/80</small></span><input autoFocus autoComplete="off" placeholder="e.g. Product support expert" {...register("name")}/>{errors.name && <small>{errors.name.message}</small>}</label><label className={`field ${errors.description ? "has-error" : ""}`}><span><b>Purpose</b><small>{description.length}/240</small></span><textarea rows={4} placeholder="Describe the questions this agent should answer…" {...register("description")}/>{errors.description && <small>{errors.description.message}</small>}</label><DocumentPicker organizationId={organizationId} initialPage={initialDocuments} selectedIds={documentIds} onChange={(ids) => setValue("documentIds", ids)}/><div className="agent-create-upload"><div><b>Upload new documents</b><small>These files join the organization library and are assigned to this agent.</small></div><FileDropField files={files} onChange={(next) => setValue("files", next, { shouldValidate: true })} compact disabled={isSubmitting} pendingLabel="Uploaded when the agent is created"/></div></section>
         <aside className="agent-create-preview"><span className="preview-label">Agent preview</span><div className="preview-agent-icon"><Sparkles size={23}/></div><h3>{name.trim() || "Your FAQ expert"}</h3><p>{description.trim() || "A focused assistant grounded in your organization’s knowledge."}</p><div className="preview-next"><span><Check size={13}/><BookOpen size={15}/> Add knowledge sources</span><span><Check size={13}/><SlidersHorizontal size={15}/> Tune AI behavior</span></div></aside>
       </div>
-      <footer className="agent-create-actions"><p><span><Check size={12}/></span>Private draft · {documentIds.length ? `${documentIds.length} document${documentIds.length === 1 ? "" : "s"} selected` : "knowledge can be skipped"}</p><div><button type="button" className="secondary-button" disabled={isSubmitting} onClick={close}>Cancel</button><button className="primary-button create-agent-submit" disabled={isSubmitting}>{isSubmitting ? <LoaderCircle className="spin" size={16}/> : <Sparkles size={16}/>} {isSubmitting ? "Creating…" : "Create agent"}<ArrowRight size={15}/></button></div></footer>
+      <footer className="agent-create-actions"><p><span><Check size={12}/></span>Private draft · {documentIds.length + files.length ? `${documentIds.length} selected · ${files.length} new` : "knowledge can be skipped"}</p><div><button type="button" className="secondary-button" disabled={isSubmitting} onClick={close}>Cancel</button><button className="primary-button create-agent-submit" disabled={isSubmitting}>{isSubmitting ? <LoaderCircle className="spin" size={16}/> : <Sparkles size={16}/>} {isSubmitting ? "Creating…" : "Create agent"}<ArrowRight size={15}/></button></div></footer>
     </motion.form>
   </motion.div>;
 }
