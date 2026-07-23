@@ -99,7 +99,7 @@ export async function createOrganizationAction(input: {
   category: string;
 }): Promise<OrganizationDto> {
   const created = await createOrganization(input, await authorization());
-  revalidatePath("/");
+  revalidatePath("/workspace");
   return created;
 }
 
@@ -114,7 +114,7 @@ export async function configureOrchestratorAction(
     active: input.active,
     agent_ids: input.agentIds,
   }, await authorization());
-  revalidatePath("/");
+  revalidatePath("/workspace");
   return configured;
 }
 
@@ -123,7 +123,7 @@ export async function updateOrganizationAction(
   input: Partial<Pick<OrganizationDto, "name" | "description" | "category" | "public_display_name" | "primary_color">> & { version: number },
 ): Promise<OrganizationDto> {
   const updated = await updateOrganization(organizationId, input, await authorization());
-  revalidatePath("/");
+  revalidatePath("/workspace");
   return updated;
 }
 
@@ -136,7 +136,7 @@ export async function createAgentAction(
     description: input.description,
     document_ids: input.documentIds,
   }, await authorization());
-  revalidatePath("/");
+  revalidatePath("/workspace");
   return created;
 }
 
@@ -146,7 +146,7 @@ export async function replaceAgentDocumentsAction(
   documentIds: string[],
 ): Promise<void> {
   await replaceAgentDocuments(organizationId, agentId, documentIds, await authorization());
-  revalidatePath("/");
+  revalidatePath("/workspace");
 }
 
 export async function uploadDocumentsAction(formData: FormData): Promise<DocumentDto[]> {
@@ -154,7 +154,7 @@ export async function uploadDocumentsAction(formData: FormData): Promise<Documen
   if (!organizationId) throw new Error("Organization is required for document upload.");
   formData.delete("organization_id");
   const created = await uploadDocuments(organizationId, formData, await authorization());
-  revalidatePath("/");
+  revalidatePath("/workspace");
   return created;
 }
 
@@ -164,19 +164,19 @@ export async function updateAgentAction(
   input: Partial<Pick<AgentDto, "name" | "description" | "status" | "enabled">> & { version: number },
 ): Promise<AgentDto> {
   const updated = await updateAgent(organizationId, agentId, input, await authorization());
-  revalidatePath("/");
+  revalidatePath("/workspace");
   return updated;
 }
 
 export async function duplicateAgentAction(organizationId: string, agentId: string, name?: string): Promise<AgentDto> {
   const created = await duplicateAgent(organizationId, agentId, name, await authorization());
-  revalidatePath("/");
+  revalidatePath("/workspace");
   return created;
 }
 
 export async function deleteAgentAction(organizationId: string, agentId: string): Promise<void> {
   await deleteAgent(organizationId, agentId, await authorization());
-  revalidatePath("/");
+  revalidatePath("/workspace");
 }
 
 export async function loadAdminAccessAction(): Promise<AdminAccessDto> { return loadAdminAccess(await authorization()); }

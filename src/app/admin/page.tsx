@@ -13,7 +13,7 @@ export default async function AdminRoute({ searchParams }: { searchParams: Admin
   const token = cookieStore.get("arffy-ai-access-token")?.value ?? cookieStore.get("querydesk-access-token")?.value;
   if (!token) redirect("/login");
   const currentUser = await loadCurrentUser(`Bearer ${token}`);
-  if (!currentUser.super_admin) redirect("/");
+  if (!currentUser.super_admin) redirect("/workspace");
   const requested = (await searchParams).view;
   const view = Array.isArray(requested) ? requested[0] : requested;
   return <AdminShell currentUser={currentUser} initialView={isAdminView(view) ? view : "overview"}/>;

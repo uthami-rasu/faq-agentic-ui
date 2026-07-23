@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { BookOpenCheck, ChevronRight, KeyRound, LayoutDashboard, LogOut, Menu, Moon, MoreHorizontal, Settings, ShieldCheck, Sun, Users, X } from "lucide-react";
+import { ArrowUpRight, BookOpenCheck, ChevronRight, KeyRound, LayoutDashboard, LogOut, Menu, Moon, MoreHorizontal, Settings, ShieldCheck, Sparkles, Sun, Users, X } from "lucide-react";
 import { logoutAction } from "@/app/auth-actions";
 import type { CurrentUserDto } from "@/lib/api";
 import { setTheme, useAppDispatch } from "@/store";
@@ -24,7 +24,7 @@ export function AdminSidebar({ open, view, currentUser, changeView, close }: Sid
       <header className="governance-brand"><span><ShieldCheck size={21}/></span><div><b>Arffy</b><small>Governance Console</small></div><button aria-label="Close navigation" onClick={close}><X size={19}/></button></header>
       <div className="governance-scope"><small>Administration scope</small><strong>Identity & access</strong><span><i/>Protected workspace</span></div>
       <nav><p>Governance</p>{primaryNavigation.map(({ view: itemView, label, icon: Icon }) => <button key={itemView} className={view === itemView ? "active" : ""} onClick={() => changeView(itemView)}><Icon size={19}/><span>{label}</span>{view === itemView && <ChevronRight size={16}/>}</button>)}<p className="governance-nav-space">Personal</p><button className={view === "settings" ? "active" : ""} onClick={() => changeView("settings")}><Settings size={19}/><span>Settings & access</span>{view === "settings" && <ChevronRight size={16}/>}</button></nav>
-      <footer><button className="governance-user" onClick={() => changeView("settings")}><span>{initials(currentUser.full_name)}</span><span><b>{currentUser.full_name}</b><small>Super administrator</small></span><MoreHorizontal size={18}/></button><form action={logoutAction}><button><LogOut size={17}/>Log out</button></form></footer>
+      <footer>{Object.keys(currentUser.organization_permissions).length > 0 && <a className="governance-product-switch" href="/workspace"><Sparkles size={18}/><span><b>Open Product</b><small>{Object.keys(currentUser.organization_permissions).length} organization access</small></span><ArrowUpRight size={16}/></a>}<button className="governance-user" onClick={() => changeView("settings")}><span>{initials(currentUser.full_name)}</span><span><b>{currentUser.full_name}</b><small>Super administrator</small></span><MoreHorizontal size={18}/></button><form action={logoutAction}><button><LogOut size={17}/>Log out</button></form></footer>
     </aside>
   </>;
 }

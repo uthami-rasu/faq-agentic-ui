@@ -2,6 +2,7 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { Check, LoaderCircle, ShieldAlert } from "lucide-react";
 import { loadAdminAccessAction } from "@/app/actions";
@@ -13,6 +14,7 @@ import type { AdminView } from "./types";
 
 export function AdminShell({ currentUser, initialView = "overview" }: { currentUser: CurrentUserDto; initialView?: AdminView }) {
   const dispatch = useAppDispatch();
+  const router = useRouter();
   const theme = useAppSelector((state) => state.ui.theme);
   const [view, setView] = useState<AdminView>(initialView);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -46,7 +48,7 @@ export function AdminShell({ currentUser, initialView = "overview" }: { currentU
       <div className="governance-content">
         {query.isLoading && <AdminLoadState icon={<LoaderCircle className="spin"/>} title="Loading governance data" detail="Reading users, roles, permissions, and access mappings…"/>}
         {query.isError && <AdminLoadState icon={<ShieldAlert/>} title="Governance data unavailable" detail="Your session may have expired, or the access service is unavailable." retry={() => query.refetch()}/>} 
-        {query.data && <AnimatePresence mode="wait"><motion.div key={view} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: .18 }}><AdminWorkspace view={view} data={query.data} currentUser={currentUser} changeView={changeView} refresh={async (message) => { await query.refetch(); notify(message); }}/></motion.div></AnimatePresence>}
+        {query.data && <AnimatePresence mode="wait"><motion.div key={view} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: .18 }}><AdminWorkspace view={view} data={query.data} currentUser={currentUser} changeView={changeView} refresh={async (message) => { await query.refetch(); router.refresh(); notify(message); }}/></motion.div></AnimatePresence>}
       </div>
     </main>
     <AnimatePresence>{toast && <motion.div className="toast governance-toast" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}><span><Check size={16}/></span>{toast}</motion.div>}</AnimatePresence>
@@ -56,4 +58,3 @@ export function AdminShell({ currentUser, initialView = "overview" }: { currentU
 function AdminLoadState({ icon, title, detail, retry }: { icon: React.ReactNode; title: string; detail: string; retry?: () => void }) {
   return <section className="governance-state"><span>{icon}</span><h1>{title}</h1><p>{detail}</p>{retry && <button className="secondary-button" onClick={retry}>Try again</button>}</section>;
 }
-

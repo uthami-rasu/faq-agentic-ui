@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { Check, Database, RotateCcw } from "lucide-react";
+import { Check, Database, RotateCcw, ShieldCheck } from "lucide-react";
 import type { InitialAppData } from "@/lib/api";
 import type { ViewKey } from "@/store";
 import { AppSidebar, AppTopbar } from "./product/app-chrome";
@@ -28,18 +28,20 @@ export function ProductShell({ initialData, initialView }: { initialData?: Initi
     organizationsQuery, dashboardQuery, notify, changeView, openAgent, saveOrganization, saveAgent, duplicateAgent, confirmDeleteAgent, createAgent, createOrganization,
   } = controller;
 
+  const currentUser = initialData?.currentUser ?? { id: "mock-user", subject: "mock-user", email: "olivia@acme.com", full_name: "Olivia Stone", super_admin: false, active: true, platform_permissions: ["organization.create"], organization_permissions: { [selectedOrganization?.id ?? "mock-organization"]: ["organization.read", "organization.edit", "organization.delete", "agent.read", "agent.create", "agent.edit", "agent.delete", "document.read", "document.upload", "document.assign", "orchestrator.read", "orchestrator.manage", "settings.read"] } };
+
   if (!selectedOrganization) {
     const failed = organizationsQuery.isError;
-    return <main className="min-h-screen bg-app-bg text-app-text grid place-items-center p-8"><section className="panel max-w-xl p-8 text-center"><span className="wizard-step-icon mx-auto"><Database size={24}/></span><h1 className="mt-4 font-display text-2xl font-bold">{failed ? "Backend connection failed" : "Loading Arffy AI"}</h1><p className="mt-2 text-sm text-app-muted">{failed ? apiErrorMessage(organizationsQuery.error) : "Loading organizations and FAQ agents from the backend…"}</p>{failed && <button className="primary-button mt-5" onClick={() => organizationsQuery.refetch()}><RotateCcw size={16}/> Retry connection</button>}</section></main>;
+    const noAccess = !failed && !organizationsQuery.isLoading && organizations.length === 0;
+    return <main className="min-h-screen bg-app-bg text-app-text grid place-items-center p-8"><section className="panel max-w-xl p-8 text-center"><span className="wizard-step-icon mx-auto">{noAccess ? <ShieldCheck size={24}/> : <Database size={24}/>}</span><h1 className="mt-4 font-display text-2xl font-bold">{failed ? "Backend connection failed" : noAccess ? "No product access assigned" : "Loading Arffy AI"}</h1><p className="mt-2 text-sm text-app-muted">{failed ? apiErrorMessage(organizationsQuery.error) : noAccess ? "Product access requires an active organization membership. Ask a governance administrator to assign an organization role." : "Loading organizations and FAQ agents from the backend…"}</p>{failed && <button className="primary-button mt-5" onClick={() => organizationsQuery.refetch()}><RotateCcw size={16}/> Retry connection</button>}{noAccess && <a className="primary-button mt-5 no-underline" href={currentUser.super_admin ? "/admin" : "/"}>{currentUser.super_admin ? "Return to Governance" : "Return to access page"}</a>}</section></main>;
   }
 
   const currentDashboard = dashboardData[selectedOrganization.id] || emptyDashboardData;
-  const currentUser = initialData?.currentUser ?? { id: "mock-user", subject: "mock-user", email: "olivia@acme.com", full_name: "Olivia Stone", super_admin: true, active: true, platform_permissions: [], organization_permissions: {} };
   const organizationPermissions = currentUser.organization_permissions[selectedOrganization.id] ?? [];
-  const can = (permission: string) => currentUser.super_admin || organizationPermissions.includes(permission);
+  const can = (permission: string) => organizationPermissions.includes(permission);
   const ssrOrganizationId = initialData?.organizations[0]?.id;
   return <div className="app-shell">
-    <AppSidebar open={sidebarOpen} view={view} currentUser={currentUser} organizationPermissions={organizationPermissions} canCreateOrganization={currentUser.super_admin || currentUser.platform_permissions.includes("organization.create")} selectedOrganization={selectedOrganization} organizations={organizations} organizationAgents={organizationAgents} selectedAgent={selectedAgent} menuOpen={showOrganizationMenu} setMenuOpen={setShowOrganizationMenu} organizationSearch={organizationSearch} setOrganizationSearch={setOrganizationSearch} setSelectedOrganizationId={setSelectedOrganizationId} setOrganizationTab={setOrganizationTab} showOrganizationWizard={() => setShowOrganizationWizard(true)} changeView={changeView} notify={notify}/>
+    <AppSidebar open={sidebarOpen} view={view} currentUser={currentUser} organizationPermissions={organizationPermissions} canCreateOrganization={currentUser.platform_permissions.includes("organization.create")} selectedOrganization={selectedOrganization} organizations={organizations} organizationAgents={organizationAgents} selectedAgent={selectedAgent} menuOpen={showOrganizationMenu} setMenuOpen={setShowOrganizationMenu} organizationSearch={organizationSearch} setOrganizationSearch={setOrganizationSearch} setSelectedOrganizationId={setSelectedOrganizationId} setOrganizationTab={setOrganizationTab} showOrganizationWizard={() => setShowOrganizationWizard(true)} changeView={changeView} notify={notify}/>
     <main className="main-area">
       <AppTopbar view={view} organization={selectedOrganization} search={search} setSearch={setSearch} theme={theme} notifications={initialData?.notifications ?? []} notify={notify} canCreateAgent={can("agent.create")} createAgent={() => setShowCreate(true)}/>
       <div className="content-wrap">
@@ -55,7 +57,7 @@ export function ProductShell({ initialData, initialView }: { initialData?: Initi
       </div>
     </main>
     <AnimatePresence>{showCreate && can("agent.create") && <CreateAgentModal close={() => setShowCreate(false)} add={createAgent} organizationId={selectedOrganization.id} initialDocuments={selectedOrganization.id === ssrOrganizationId ? initialData?.documentsPage : undefined}/>}</AnimatePresence>
-    <AnimatePresence>{showOrganizationWizard && (currentUser.super_admin || currentUser.platform_permissions.includes("organization.create")) && <CreateOrganizationWizard close={() => setShowOrganizationWizard(false)} complete={createOrganization}/>}</AnimatePresence>
+    <AnimatePresence>{showOrganizationWizard && currentUser.platform_permissions.includes("organization.create") && <CreateOrganizationWizard close={() => setShowOrganizationWizard(false)} complete={createOrganization}/>}</AnimatePresence>
     <AnimatePresence>{deleteConfirmation && <DeleteAgentConfirmation agent={deleteConfirmation.agent} deleting={deletingAgent} cancel={() => { if (!deletingAgent) setDeleteConfirmation(null); }} confirm={confirmDeleteAgent}/>}</AnimatePresence>
     <AnimatePresence>{toast && <motion.div className="toast" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}><span><Check size={15}/></span>{toast}</motion.div>}</AnimatePresence>
   </div>;

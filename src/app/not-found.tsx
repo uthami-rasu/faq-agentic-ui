@@ -6,6 +6,6 @@ export default function NotFound() {
     eyebrow="Wrong turn"
     title="This page wandered off"
     description="The address may be incorrect, or the page may have moved somewhere new."
-    actions={<a className="error-primary-action" href="/">Back to Arffy AI</a>}
+    actions={<a className="error-primary-action" href="/">Back to workspace selection</a>}
   />;
 }
