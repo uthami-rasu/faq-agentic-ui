@@ -1,23 +1,54 @@
 "use client";
 
-import { useState } from "react";
-import { Bot, CheckCircle2, Clipboard, Globe2, MessagesSquare, Network, Send, Sparkles, X } from "lucide-react";
+import { useState, type CSSProperties } from "react";
+import { ArrowRight, Bot, CheckCircle2, Clipboard, LockKeyhole, MessagesSquare, Network, Save, Send, Sparkles, X } from "lucide-react";
 import type { Notify } from "../types";
 import { PageHeading } from "../shared";
 
-type Props = { notify: Notify; embedded?: boolean; agentMode?: boolean; agentName?: string };
+type WidgetStyle = "floating" | "side" | "compact";
+type Props = { notify: Notify; embedded?: boolean; agentMode?: boolean; agentName?: string; agentId?: string; organizationId?: string; organizationName?: string; orchestratorName?: string; welcomeMessage?: string };
 
-export function WidgetsPage({ notify, embedded = false, agentMode = false, agentName = "Customer Support" }: Props) {
-  const [widgetType, setWidgetType] = useState<"Organization" | "Agent">(agentMode ? "Agent" : "Organization");
+const colors = ["#168c86", "#2563eb", "#0f9f73", "#e45858", "#171923"];
+const styles: Array<{ id: WidgetStyle; label: string; description: string; icon: typeof MessagesSquare }> = [
+  { id: "floating", label: "Floating chat", description: "Classic corner assistant", icon: MessagesSquare },
+  { id: "side", label: "Side panel", description: "Full-height support panel", icon: Network },
+  { id: "compact", label: "Compact", description: "Small, focused chat card", icon: Bot },
+];
+
+export function WidgetsPage({ notify, embedded = false, agentMode = false, agentName = "Customer Support", agentId = "agent-id", organizationId = "organization-id", organizationName = "Organization", orchestratorName, welcomeMessage = "Hi! How can I help you today?" }: Props) {
   const [open, setOpen] = useState(true);
-  const snippet = agentMode ? '<script src="https://cdn.arffy.ai/widget.js" data-agent="agent_cs_8f21"></script>' : '<script src="https://cdn.arffy.ai/widget.js" data-organization="acme_92a7"></script>';
+  const [brandColor, setBrandColor] = useState(colors[0]);
+  const [widgetStyle, setWidgetStyle] = useState<WidgetStyle>("floating");
+  const [savedAppearance, setSavedAppearance] = useState({ brandColor: colors[0], widgetStyle: "floating" as WidgetStyle });
+  const snippet = agentMode ? `<script src="https://cdn.arffy.ai/widget.js" data-agent="${agentId}"></script>` : `<script src="https://cdn.arffy.ai/widget.js" data-organization="${organizationId}"></script>`;
+  const assistantName = agentMode ? agentName : orchestratorName || `${organizationName} Assistant`;
+  const heading = agentMode ? `${agentName} widget` : `${organizationName} widget`;
+  const description = agentMode ? `Deploy a widget that sends questions directly to ${agentName}.` : "Customize the appearance of your organization assistant.";
+  const appearanceDirty = brandColor !== savedAppearance.brandColor || widgetStyle !== savedAppearance.widgetStyle;
+  const saveAppearance = () => { if (!appearanceDirty) return; setSavedAppearance({ brandColor, widgetStyle }); notify("Widget appearance saved"); };
+
   return <>
-    {!embedded && <PageHeading eyebrow="Publish with confidence" title="Widget deployment" description="Customize your assistant, preview it live, then add it to any website."><button className="primary-button" onClick={() => notify("Widget configuration published")}><Globe2 size={16}/> Publish changes</button></PageHeading>}
-    {embedded && <div className="section-intro"><div><h2>{agentMode ? `${agentName} widget` : "Organization widget"}</h2><p>{agentMode ? `Deploy a widget that sends every question directly to ${agentName}.` : "Deploy your public assistant and route questions through the AI Orchestrator."}</p></div><button className="primary-button" onClick={() => notify("Widget configuration published")}><Globe2 size={16}/> Publish changes</button></div>}
-    <div className="widget-layout">
-      <section className="panel widget-config"><div className="panel-title"><div><h2>Configure widget</h2><p>Changes appear in the preview instantly.</p></div></div>{!embedded && <><label className="field"><span>Widget type</span></label><div className="widget-type-grid"><button className={widgetType === "Organization" ? "selected" : ""} onClick={() => setWidgetType("Organization")}><Network size={20}/><b>Organization</b><small>Route to the best agent</small><CheckCircle2 size={17}/></button><button className={widgetType === "Agent" ? "selected" : ""} onClick={() => setWidgetType("Agent")}><Bot size={20}/><b>Direct agent</b><small>Use one specific agent</small><CheckCircle2 size={17}/></button></div><div className="form-divider"/></>}<label className="field"><span>Assistant name</span><input defaultValue={agentMode ? agentName : "Acme Assistant"}/></label><label className="field"><span>Welcome message</span><textarea rows={3} defaultValue="Hi there! 👋 How can we help today?"/></label><div className="field"><span>Brand color</span><div className="color-options"><button className="selected" style={{background:"#168c86"}}/><button style={{background:"#2563eb"}}/><button style={{background:"#0f9f73"}}/><button style={{background:"#e45858"}}/><button style={{background:"#171923"}}/></div></div></section>
-      <section className="panel preview-panel"><div className="preview-toolbar"><div><h2>Live preview</h2><span>Desktop</span></div><div><button>Desktop</button><button>Mobile</button></div></div><div className="browser-frame"><div className="browser-bar"><i/><i/><i/><span>yourwebsite.com</span></div><div className="fake-site"><header><b>ACME</b><span>Product&nbsp;&nbsp;&nbsp; Solutions&nbsp;&nbsp;&nbsp; Pricing</span><button>Get started</button></header><main><span>AI-POWERED SUPPORT</span><h3>Support that never<br/>keeps you waiting.</h3><p>Give your customers instant, accurate answers—day or night.</p><button>Start free trial</button></main>{open ? <div className="widget-chat"><div className="widget-chat-head"><span><Sparkles size={16}/></span><div><b>{agentMode ? agentName : "Acme Assistant"}</b><small><i/> Online</small></div><button onClick={() => setOpen(false)}><X size={15}/></button></div><div className="widget-chat-body"><div className="widget-bubble">Hi there! 👋 How can we help today?</div><div className="widget-time">Just now</div><div className="widget-suggestions"><button>Track my order</button><button>View pricing</button></div></div><div className="widget-input"><span>Type a message...</span><Send size={15}/></div></div> : <button className="widget-launcher" onClick={() => setOpen(true)}><MessagesSquare size={22}/><i/></button>}</div></div></section>
+    {!embedded && <PageHeading eyebrow="Publish with confidence" title="Widget appearance" description="Choose how your assistant looks, preview it, then install it on your website."><AppearanceSaveButton dirty={appearanceDirty} save={saveAppearance}/></PageHeading>}
+    {embedded && <div className="section-intro"><div><h2>{heading}</h2><p>{description}</p></div><AppearanceSaveButton dirty={appearanceDirty} save={saveAppearance}/></div>}
+    <div className="widget-layout widget-appearance-layout">
+      <section className="panel widget-config widget-appearance-config">
+        <div className="panel-title"><div><h2>Appearance</h2><p>Content is managed by the Orchestrator; this page controls presentation only.</p></div></div>
+        <div className="widget-content-source"><LockKeyhole size={17}/><div><b>Content inherited</b><p><strong>{assistantName}</strong><span>{welcomeMessage}</span></p><small>{agentMode ? "Managed by the FAQ agent" : "Managed in Orchestrator → Configuration"}</small></div></div>
+        <div className="widget-control-group"><span>Chat layout</span><div className="widget-appearance-options">{styles.map((option) => { const Icon = option.icon; return <button key={option.id} className={widgetStyle === option.id ? "selected" : ""} onClick={() => { setWidgetStyle(option.id); setOpen(true); }}><Icon size={19}/><span><b>{option.label}</b><small>{option.description}</small></span><CheckCircle2 size={16}/></button>; })}</div></div>
+        <div className="widget-control-group"><span>Brand color</span><div className="color-options professional-colors">{colors.map((color) => <button key={color} aria-label={`Use ${color} as the widget color`} className={brandColor === color ? "selected" : ""} style={{ background: color }} onClick={() => setBrandColor(color)}/>)}</div><small className="appearance-help">Applied to the header, launcher, buttons, and focus accents.</small></div>
+      </section>
+      <WidgetPreview organizationName={organizationName} assistantName={assistantName} welcomeMessage={welcomeMessage} open={open} setOpen={setOpen} brandColor={brandColor} widgetStyle={widgetStyle}/>
     </div>
-    <section className="panel install-panel"><div className="panel-title"><div><h2>Install on your website</h2><p>Paste this snippet before the closing &lt;/body&gt; tag.</p></div><span className="secure-badge"><CheckCircle2 size={13}/> Ready to install</span></div><div className="code-block"><code>{snippet}</code><button onClick={() => { navigator.clipboard?.writeText(snippet); notify("Embed code copied"); }}><Clipboard size={15}/> Copy code</button></div></section>
+    <section className="panel install-panel"><div className="panel-title"><div><h2>Install on your website</h2><p>Paste this snippet before the closing &lt;/body&gt; tag.</p></div><span className="secure-badge"><CheckCircle2 size={13}/>Ready to install</span></div><div className="code-block"><code>{snippet}</code><button onClick={() => { navigator.clipboard?.writeText(snippet); notify("Embed code copied"); }}><Clipboard size={15}/>Copy code</button></div></section>
   </>;
+}
+
+function AppearanceSaveButton({ dirty, save }: { dirty: boolean; save: () => void }) {
+  return <button className="primary-button appearance-save-button" disabled={!dirty} onClick={save}>{dirty ? <Save size={16}/> : <CheckCircle2 size={16}/>} {dirty ? "Save appearance" : "Saved"}</button>;
+}
+
+function WidgetPreview({ organizationName, assistantName, welcomeMessage, open, setOpen, brandColor, widgetStyle }: { organizationName: string; assistantName: string; welcomeMessage: string; open: boolean; setOpen: (open: boolean) => void; brandColor: string; widgetStyle: WidgetStyle }) {
+  const [device, setDevice] = useState<"desktop" | "mobile">("desktop");
+  const previewStyle = { "--widget-brand": brandColor } as CSSProperties;
+  return <section className="panel preview-panel widget-live-preview" style={previewStyle}><div className="preview-toolbar"><div><h2>Live preview</h2><span>{styles.find((item) => item.id === widgetStyle)?.label}</span></div><div><button className={device === "desktop" ? "selected" : ""} aria-pressed={device === "desktop"} onClick={() => setDevice("desktop")}>Desktop</button><button className={device === "mobile" ? "selected" : ""} aria-pressed={device === "mobile"} onClick={() => setDevice("mobile")}>Mobile</button></div></div><div className={`browser-frame preview-${device}`}><div className="browser-bar"><i/><i/><i/><span>yourwebsite.com</span></div><div className="fake-site"><header><b>{organizationName.toUpperCase()}</b><span>Product&nbsp;&nbsp;&nbsp; Solutions&nbsp;&nbsp;&nbsp; Pricing</span><button>Get started</button></header><main><span>AI-POWERED SUPPORT</span><h3>Support that never<br/>keeps you waiting.</h3><p>Give your customers instant, accurate answers—day or night.</p><button>Start free trial</button></main>{open ? <div className={`widget-chat style-${widgetStyle}`}><div className="widget-chat-head"><i className="widget-head-glow"/><span><Sparkles size={17}/></span><div><b>{assistantName}</b><small><i/>Online · typically replies instantly</small></div><button aria-label="Close chat" onClick={() => setOpen(false)}><X size={15}/></button></div><div className="widget-chat-body"><div className="widget-greeting"><span><Sparkles size={13}/></span><small>AI ASSISTANT</small></div><div className="widget-bubble">{welcomeMessage}</div><div className="widget-time">Just now</div><div className="widget-suggestions"><button>Track my order <ArrowRight size={9}/></button><button>Explore pricing <ArrowRight size={9}/></button></div><div className="widget-powered"><Sparkles size={9}/>Powered by Arffy AI</div></div><div className="widget-input"><span>Ask us anything...</span><button aria-label="Send message"><Send size={13}/></button></div></div> : <button className="widget-launcher" aria-label="Open chat" onClick={() => setOpen(true)}><MessagesSquare size={22}/><i/></button>}</div></div></section>;
 }

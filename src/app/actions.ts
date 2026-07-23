@@ -2,7 +2,7 @@
 
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
-import type { AgentDto, DashboardDto, DocumentDto, NotificationDto, OrchestratorConfigurationDto, OrganizationDto, PaginatedResult } from "@/lib/api";
+import type { AgentDto, DashboardDto, DocumentDto, NotificationDto, OrchestratorConfigurationDto, OrganizationDto, PaginatedResult, SettingsDataDto } from "@/lib/api";
 import {
   createAgent,
   createOrganization,
@@ -15,6 +15,7 @@ import {
   loadNotifications,
   loadOrchestratorConfiguration,
   loadOrganizations,
+  loadSettingsData,
   markNotificationRead,
   replaceAgentDocuments,
   updateAgent,
@@ -73,6 +74,10 @@ export async function loadDashboardAction(organizationId: string): Promise<Dashb
   return loadDashboard(organizationId, await authorization());
 }
 
+export async function loadSettingsAction(): Promise<SettingsDataDto> {
+  return loadSettingsData(await authorization());
+}
+
 export async function loadOrchestratorConfigurationAction(
   organizationId: string,
 ): Promise<OrchestratorConfigurationDto> {
@@ -95,9 +100,10 @@ export async function createOrganizationAction(input: {
 
 export async function configureOrchestratorAction(
   organizationId: string,
-  input: { welcomeMessage: string; systemPrompt: string; active?: boolean; agentIds?: string[] },
+  input: { assistantName?: string; welcomeMessage: string; systemPrompt: string; active?: boolean; agentIds?: string[] },
 ): Promise<OrchestratorConfigurationDto> {
   const configured = await configureOrchestrator(organizationId, {
+    assistant_name: input.assistantName,
     welcome_message: input.welcomeMessage,
     system_prompt: input.systemPrompt,
     active: input.active,

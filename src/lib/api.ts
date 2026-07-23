@@ -48,6 +48,19 @@ export type AiModelDto = {
   default_model: boolean;
 };
 
+export type ServiceStatusDto = {
+  id: "backend" | "storage" | "ai";
+  name: string;
+  status: "UP" | "DOWN" | "UNKNOWN";
+  detail: string;
+};
+
+export type SettingsDataDto = {
+  services: ServiceStatusDto[];
+  models: AiModelDto[];
+  checked_at: string;
+};
+
 export type DocumentDto = {
   id: string;
   organization_id: string;
@@ -88,6 +101,7 @@ export type DashboardDto = {
 export type OrchestratorConfigurationDto = {
   id: string | null;
   organization_id: string;
+  assistant_name: string;
   welcome_message: string;
   system_prompt: string;
   fallback_message: string;

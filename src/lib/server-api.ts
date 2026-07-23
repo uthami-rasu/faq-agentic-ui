@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { AgentDto, AiModelDto, DashboardDto, DocumentDto, InitialAppData, NotificationDto, OrchestratorConfigurationDto, OrganizationDto, PaginatedResult, PaginationDto } from "@/lib/api";
+import type { AgentDto, AiModelDto, DashboardDto, DocumentDto, InitialAppData, NotificationDto, OrchestratorConfigurationDto, OrganizationDto, PaginatedResult, PaginationDto, ServiceStatusDto, SettingsDataDto } from "@/lib/api";
 
 const API_BASE_URL = (process.env.API_BASE_URL ?? "http://localhost:8080/api/v1").replace(/\/$/, "");
 
@@ -56,6 +56,42 @@ export async function loadOrganizations(userAuthorization?: string): Promise<Org
 
 export async function loadAiModels(userAuthorization?: string): Promise<AiModelDto[]> {
   return (await requestBackend<AiModelDto[]>("/ai-models?capability=faq", userAuthorization)).data;
+}
+
+export async function loadSettingsData(userAuthorization?: string): Promise<SettingsDataDto> {
+  const [systemResult, modelsResult] = await Promise.allSettled([
+    requestBackend<{ services: ServiceStatusDto[]; checked_at: string }>("/system/status", userAuthorization),
+    loadAiModels(userAuthorization),
+  ]);
+  const services: ServiceStatusDto[] = systemResult.status === "fulfilled"
+    ? systemResult.value.data.services
+    : [
+      { id: "backend", name: "FAQ backend", status: "DOWN", detail: "The frontend could not reach the backend API." },
+      { id: "storage", name: "MinIO object storage", status: "UNKNOWN", detail: "Storage cannot be checked while the backend is unavailable." },
+    ];
+  services.push(modelsResult.status === "fulfilled"
+    ? { id: "ai", name: "AI processing service", status: "UP", detail: `${modelsResult.value.length} model${modelsResult.value.length === 1 ? " is" : "s are"} available through the backend.` }
+    : { id: "ai", name: "AI processing service", status: "DOWN", detail: "The backend could not reach the AI model catalog." });
+  return {
+    services,
+    models: modelsResult.status === "fulfilled" ? modelsResult.value : [],
+    checked_at: systemResult.status === "fulfilled" ? systemResult.value.data.checked_at : new Date().toISOString(),
+  };
+}
+
+export async function fetchDocumentContent(
+  organizationId: string,
+  documentId: string,
+  textPreview: boolean,
+  userAuthorization?: string,
+): Promise<Response> {
+  const authorization = authorizationHeader(userAuthorization);
+  const headers = new Headers({ Accept: textPreview ? "text/plain" : "*/*" });
+  if (authorization) headers.set("Authorization", authorization);
+  return fetch(`${API_BASE_URL}/organizations/${encodeURIComponent(organizationId)}/documents/${encodeURIComponent(documentId)}/${textPreview ? "text-preview" : "content"}`, {
+    headers,
+    cache: "no-store",
+  });
 }
 
 export async function loadNotifications(userAuthorization?: string): Promise<NotificationDto[]> {
@@ -202,7 +238,7 @@ export async function createOrganization(
 
 export async function configureOrchestrator(
   organizationId: string,
-  input: { welcome_message: string; system_prompt: string; active?: boolean; agent_ids?: string[] },
+  input: { assistant_name?: string; welcome_message: string; system_prompt: string; active?: boolean; agent_ids?: string[] },
   userAuthorization?: string,
 ): Promise<OrchestratorConfigurationDto> {
   return (await requestBackend<OrchestratorConfigurationDto>(`/organizations/${encodeURIComponent(organizationId)}/orchestrator`,
