@@ -1,6 +1,7 @@
 import "server-only";
 
-import type { AgentDto, AiModelDto, DashboardDto, DocumentDto, InitialAppData, NotificationDto, OrchestratorConfigurationDto, OrganizationDto, PaginatedResult, PaginationDto, ServiceStatusDto, SettingsDataDto } from "@/lib/api";
+import type { AdminAccessDto, AdminRoleDto, AdminUserDto, AgentDto, AiModelDto, CurrentUserDto, DashboardDto, DocumentDto, InitialAppData, NotificationDto, OrchestratorConfigurationDto, OrganizationDto, PaginatedResult, PaginationDto, ServiceStatusDto, SettingsDataDto } from "@/lib/api";
+import { ApiError } from "@/lib/api";
 
 const API_BASE_URL = (process.env.API_BASE_URL ?? "http://localhost:8080/api/v1").replace(/\/$/, "");
 
@@ -41,13 +42,46 @@ async function requestBackend<T>(path: string, userAuthorization?: string, init:
 
   if (!response.ok) {
     const payload = await response.json().catch(() => ({})) as { error?: { message?: string; code?: string } };
-    const error = new Error(payload.error?.message ?? `Backend request failed with status ${response.status}.`);
-    error.name = payload.error?.code ?? "BACKEND_REQUEST_FAILED";
-    throw error;
+    throw new ApiError(payload.error?.message ?? `Backend request failed with status ${response.status}.`, response.status,
+      payload.error?.code ?? "BACKEND_REQUEST_FAILED");
   }
 
   if (response.status === 204) return { data: undefined as T };
   return response.json() as Promise<ApiEnvelope<T>>;
+}
+
+export async function login(email: string, password: string): Promise<{ access_token: string; expires_at: string; user: CurrentUserDto }> {
+  return (await requestBackend<{ access_token: string; expires_at: string; user: CurrentUserDto }>("/auth/login", undefined, {
+    method: "POST", body: JSON.stringify({ email, password }),
+  })).data;
+}
+
+export async function loadCurrentUser(userAuthorization?: string): Promise<CurrentUserDto> {
+  return (await requestBackend<CurrentUserDto>("/auth/me", userAuthorization)).data;
+}
+
+export async function logout(userAuthorization?: string): Promise<void> {
+  await requestBackend<void>("/auth/logout", userAuthorization, { method: "POST" });
+}
+
+export async function loadAdminAccess(userAuthorization?: string): Promise<AdminAccessDto> {
+  return (await requestBackend<AdminAccessDto>("/admin/access", userAuthorization)).data;
+}
+
+export async function createAdminUser(input: { email: string; full_name: string; password: string; super_admin: boolean }, userAuthorization?: string): Promise<AdminUserDto> {
+  return (await requestBackend<AdminUserDto>("/admin/access/users", userAuthorization, { method: "POST", body: JSON.stringify(input) })).data;
+}
+
+export async function updateAdminUser(userId: string, input: { full_name?: string; password?: string; active?: boolean; super_admin?: boolean }, userAuthorization?: string): Promise<AdminUserDto> {
+  return (await requestBackend<AdminUserDto>(`/admin/access/users/${encodeURIComponent(userId)}`, userAuthorization, { method: "PATCH", body: JSON.stringify(input) })).data;
+}
+
+export async function createAdminRole(input: { name: string; description: string; scope: "PLATFORM" | "ORGANIZATION"; permissions: string[] }, userAuthorization?: string): Promise<string> {
+  return (await requestBackend<string>("/admin/access/roles", userAuthorization, { method: "POST", body: JSON.stringify(input) })).data;
+}
+
+export async function assignAdminRoles(input: { user_id: string; organization_id?: string; role_ids: string[] }, userAuthorization?: string): Promise<void> {
+  await requestBackend<void>("/admin/access/assignments", userAuthorization, { method: "PUT", body: JSON.stringify(input) });
 }
 
 export async function loadOrganizations(userAuthorization?: string): Promise<OrganizationDto[]> {
@@ -173,6 +207,7 @@ export async function loadInitialAppData(
   faqQuery: { search?: string; page?: number; pageSize?: number } = {},
   documentQuery: { search?: string; agentId?: string; page?: number; pageSize?: number } = {},
 ): Promise<InitialAppData> {
+  const currentUser = await loadCurrentUser(userAuthorization);
   const modelsPromise = loadAiModels(userAuthorization)
     .then((models) => ({ models, available: true }))
     .catch(() => ({ models: [] as AiModelDto[], available: false }));
@@ -190,6 +225,7 @@ export async function loadInitialAppData(
     const emptyPage = { items: [], page: 1, pageSize, totalItems: 0, totalPages: 0 };
     const [modelCatalog, notifications] = await Promise.all([modelsPromise, notificationsPromise]);
     return {
+      currentUser,
       organizations,
       agentsPage: { ...emptyPage, pageSize: 100 },
       faqAgentsPage: emptyPage,
@@ -216,6 +252,7 @@ export async function loadInitialAppData(
     notificationsPromise,
   ]);
   return {
+    currentUser,
     organizations,
     agentsPage,
     faqAgentsPage,

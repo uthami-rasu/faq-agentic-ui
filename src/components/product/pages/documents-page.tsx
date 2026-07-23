@@ -18,6 +18,7 @@ type Props = {
   ssrPage?: PaginatedResult<DocumentDto>;
   query: InitialAppData["documentQuery"];
   notify: Notify;
+  canUpload: boolean;
 };
 
 function formatBytes(bytes: number) {
@@ -32,7 +33,7 @@ function statusLabel(status: DocumentDto["status"]) {
   return <em className="processing"><LoaderCircle className="spin" size={11}/> Processing</em>;
 }
 
-export function DocumentsPage({ organizationId, agents, ssrPage, query, notify }: Props) {
+export function DocumentsPage({ organizationId, agents, ssrPage, query, notify, canUpload }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const [search, setSearch] = useState(query.search);
@@ -72,7 +73,7 @@ export function DocumentsPage({ organizationId, agents, ssrPage, query, notify }
 
   return <>
     <PageHeading title="Documents" description="View processing status and manage knowledge across your FAQ agents."/>
-    <DocumentUploadPanel organizationId={organizationId} agentId={query.agentId || undefined} notify={notify} compact onStagedFilesChange={setStagedFiles}/>
+    {canUpload && <DocumentUploadPanel organizationId={organizationId} agentId={query.agentId || undefined} notify={notify} compact onStagedFilesChange={setStagedFiles}/>}
     <section className="documents-overview panel"><div><span><Files size={20}/></span><div><b>{page?.totalItems ?? 0} uploaded knowledge documents</b><p>{stagedFiles ? `${stagedFiles} file${stagedFiles === 1 ? " is" : "s are"} staged above—upload to add ${stagedFiles === 1 ? "it" : "them"} to the library.` : query.agentId ? `Filtered to ${agents.find((agent) => agent.id === query.agentId)?.name ?? "selected agent"}` : "Across all FAQ agents in this organization"}</p></div></div><span className="documents-live"><i/> Processing updates enabled</span></section>
     <section className="panel documents-panel">
       <header className="documents-toolbar"><form role="search" onSubmit={submitSearch}><Search size={17}/><input type="search" enterKeyHint="search" aria-label="Search uploaded documents" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search by document name…"/><button type="submit" disabled={pending}>{pending ? "Searching…" : "Search"}</button></form><label><span>FAQ agent</span><select value={query.agentId} onChange={(event) => navigate({ agentId: event.target.value, page: 1 })}><option value="">All agents</option>{agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.name}</option>)}</select></label></header>

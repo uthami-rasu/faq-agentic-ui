@@ -61,6 +61,28 @@ export type SettingsDataDto = {
   checked_at: string;
 };
 
+export type CurrentUserDto = {
+  id: string;
+  subject: string;
+  email: string;
+  full_name: string;
+  super_admin: boolean;
+  active: boolean;
+  platform_permissions: string[];
+  organization_permissions: Record<string, string[]>;
+};
+
+export type AdminPermissionDto = { code: string; resource: string; description: string; permission_level: 0 | 1 | 2; scope: "PLATFORM" | "ORGANIZATION" };
+export type AdminRoleDto = { id: string; name: string; description: string; scope: "PLATFORM" | "ORGANIZATION"; system_role: boolean; active: boolean; permissions: string[]; created_at: string; created_by: string; modified_by: string };
+export type AdminUserDto = { id: string; subject: string; email: string; full_name: string; super_admin: boolean; active: boolean; created_at: string; created_by: string; modified_by: string };
+export type AdminAccessDto = {
+  users: AdminUserDto[];
+  roles: AdminRoleDto[];
+  permissions: AdminPermissionDto[];
+  organizations: Array<{ id: string; name: string }>;
+  assignments: Array<{ user_id: string; organization_id: string; membership_id: string; active: boolean; role_ids: string[] }>;
+};
+
 export type DocumentDto = {
   id: string;
   organization_id: string;
@@ -112,6 +134,7 @@ export type OrchestratorConfigurationDto = {
 };
 
 export type InitialAppData = {
+  currentUser: CurrentUserDto;
   organizations: OrganizationDto[];
   agentsPage: PaginatedResult<AgentDto>;
   faqAgentsPage: PaginatedResult<AgentDto>;

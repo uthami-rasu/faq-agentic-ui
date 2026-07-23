@@ -2,7 +2,7 @@
 
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
-import type { AgentDto, DashboardDto, DocumentDto, NotificationDto, OrchestratorConfigurationDto, OrganizationDto, PaginatedResult, SettingsDataDto } from "@/lib/api";
+import type { AdminAccessDto, AdminUserDto, AgentDto, DashboardDto, DocumentDto, NotificationDto, OrchestratorConfigurationDto, OrganizationDto, PaginatedResult, SettingsDataDto } from "@/lib/api";
 import {
   createAgent,
   createOrganization,
@@ -21,6 +21,11 @@ import {
   updateAgent,
   updateOrganization,
   uploadDocuments,
+  loadAdminAccess,
+  createAdminUser,
+  updateAdminUser,
+  createAdminRole,
+  assignAdminRoles,
 } from "@/lib/server-api";
 
 async function authorization(): Promise<string | undefined> {
@@ -172,4 +177,28 @@ export async function duplicateAgentAction(organizationId: string, agentId: stri
 export async function deleteAgentAction(organizationId: string, agentId: string): Promise<void> {
   await deleteAgent(organizationId, agentId, await authorization());
   revalidatePath("/");
+}
+
+export async function loadAdminAccessAction(): Promise<AdminAccessDto> { return loadAdminAccess(await authorization()); }
+
+export async function createAdminUserAction(input: { email: string; fullName: string; password: string; superAdmin: boolean }): Promise<AdminUserDto> {
+  const user = await createAdminUser({ email: input.email, full_name: input.fullName, password: input.password, super_admin: input.superAdmin }, await authorization());
+  revalidatePath("/admin"); return user;
+}
+
+export async function changeAdminPasswordAction(userId: string, password: string): Promise<AdminUserDto> {
+  return updateAdminUser(userId, { password }, await authorization());
+}
+
+export async function setAdminUserActiveAction(userId: string, active: boolean): Promise<AdminUserDto> {
+  return updateAdminUser(userId, { active }, await authorization());
+}
+
+export async function createAdminRoleAction(input: { name: string; description: string; scope: "PLATFORM" | "ORGANIZATION"; permissions: string[] }): Promise<string> {
+  const role = await createAdminRole(input, await authorization()); revalidatePath("/admin"); return role;
+}
+
+export async function assignAdminRolesAction(input: { userId: string; organizationId?: string; roleIds: string[] }): Promise<void> {
+  await assignAdminRoles({ user_id: input.userId, organization_id: input.organizationId, role_ids: input.roleIds }, await authorization());
+  revalidatePath("/admin");
 }

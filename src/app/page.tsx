@@ -1,6 +1,8 @@
 import { ProductShell } from "@/components/product-shell";
 import { loadInitialAppData } from "@/lib/server-api";
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+import { ApiError, type InitialAppData } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
 
@@ -24,12 +26,16 @@ export default async function Home({ searchParams }: { searchParams: HomeSearchP
   const cookieStore = await cookies();
   const accessToken = cookieStore.get("arffy-ai-access-token")?.value
     ?? cookieStore.get("querydesk-access-token")?.value;
-  const initialData = process.env.NEXT_PUBLIC_USE_MOCK_DATA === "true"
-    ? undefined
-    : await loadInitialAppData(
-      accessToken ? `Bearer ${accessToken}` : undefined,
-      { search, page, pageSize: 6 },
-      { search: documentSearch, agentId: documentAgentId, page: documentPage, pageSize: 12 },
-    );
+  if (!accessToken && process.env.NEXT_PUBLIC_USE_MOCK_DATA !== "true") redirect("/login");
+  let initialData: InitialAppData | undefined;
+  try {
+    initialData = process.env.NEXT_PUBLIC_USE_MOCK_DATA === "true" ? undefined : await loadInitialAppData(
+        accessToken ? `Bearer ${accessToken}` : undefined,
+        { search, page, pageSize: 6 },
+        { search: documentSearch, agentId: documentAgentId, page: documentPage, pageSize: 12 });
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 401) redirect("/login?session=expired");
+    throw error;
+  }
   return <ProductShell initialData={initialData} initialView={initialView} />;
 }

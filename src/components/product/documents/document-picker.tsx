@@ -12,9 +12,10 @@ type Props = {
   onChange: (ids: string[]) => void;
   initialPage?: PaginatedResult<DocumentDto>;
   agentId?: string;
+  readOnly?: boolean;
 };
 
-export function DocumentPicker({ organizationId, selectedIds, onChange, initialPage, agentId }: Props) {
+export function DocumentPicker({ organizationId, selectedIds, onChange, initialPage, agentId, readOnly = false }: Props) {
   const [search, setSearch] = useState("");
   const [libraryOpen, setLibraryOpen] = useState(false);
   const query = useQuery({
@@ -42,15 +43,15 @@ export function DocumentPicker({ organizationId, selectedIds, onChange, initialP
       {query.isLoading && <PickerState><LoaderCircle className="spin" size={17}/> Loading linked documents…</PickerState>}
       {query.isError && <button type="button" className="document-picker-state" onClick={() => query.refetch()}>Couldn&apos;t load documents · Retry</button>}
       {!query.isLoading && !query.isError && !linkedDocuments.length && <PickerState>No documents linked yet. Upload below or expand the organization library.</PickerState>}
-      {linkedDocuments.map((document) => <DocumentRow key={document.id} document={document} selected onClick={() => toggle(document.id)} detail={document.assigned_agents.some((agent) => agent.id === agentId) ? `Linked · ${statusText(document)}` : "Will link after Save knowledge"}/>) }
+      {linkedDocuments.map((document) => <DocumentRow key={document.id} document={document} selected disabled={readOnly} onClick={() => toggle(document.id)} detail={document.assigned_agents.some((agent) => agent.id === agentId) ? `Linked · ${statusText(document)}` : "Will link after Save knowledge"}/>) }
     </div>
-    <div className={`organization-library-disclosure ${libraryOpen ? "open" : ""}`}>
+    {!readOnly && <div className={`organization-library-disclosure ${libraryOpen ? "open" : ""}`}>
       <button type="button" className="organization-library-toggle" aria-expanded={libraryOpen} onClick={() => setLibraryOpen((open) => !open)}><span><i><FolderOpen size={17}/></i><span><b>Share from organization library</b><small>Documents from other agents are not linked by default.</small></span></span><em>{availableDocuments.length} available</em><ChevronDown size={16}/></button>
       {libraryOpen && <div className="organization-library-content"><p>Selecting a document stages an explicit link. Use <b>Save knowledge</b> to confirm.</p><label className="document-picker-search"><Search size={15}/><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search the organization library…"/></label><div className="document-picker-list">
         {!visibleAvailable.length && <PickerState>{search ? "No matching documents" : "No other documents are available"}</PickerState>}
         {visibleAvailable.map((document) => <DocumentRow key={document.id} document={document} selected={false} onClick={() => toggle(document.id)} detail={sharingDetail(document, agentId)}/>) }
       </div></div>}
-    </div>
+    </div>}
   </div>;
 
   const term = search.trim().toLowerCase();
@@ -67,8 +68,8 @@ export function DocumentPicker({ organizationId, selectedIds, onChange, initialP
   </div>;
 }
 
-function DocumentRow({ document, selected, onClick, detail }: { document: DocumentDto; selected: boolean; onClick: () => void; detail: string }) {
-  return <button type="button" aria-pressed={selected} className={selected ? "selected" : ""} onClick={onClick}><i><FileText size={15}/></i><span><b>{document.file_name}</b><small>{detail}</small></span><em>{selected && <Check size={13}/>}</em></button>;
+function DocumentRow({ document, selected, onClick, detail, disabled = false }: { document: DocumentDto; selected: boolean; onClick: () => void; detail: string; disabled?: boolean }) {
+  return <button type="button" aria-pressed={selected} className={selected ? "selected" : ""} disabled={disabled} onClick={onClick}><i><FileText size={15}/></i><span><b>{document.file_name}</b><small>{detail}</small></span><em>{selected && <Check size={13}/>}</em></button>;
 }
 
 function PickerState({ children }: { children: React.ReactNode }) {

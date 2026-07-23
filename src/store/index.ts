@@ -1,7 +1,7 @@
 import { configureStore, createSlice, PayloadAction } from "@reduxjs/toolkit";
 import { TypedUseSelectorHook, useDispatch, useSelector } from "react-redux";
 
-export type ViewKey = "dashboard" | "organization" | "orchestrator" | "agents" | "agent" | "documents" | "settings";
+export type ViewKey = "dashboard" | "organization" | "orchestrator" | "agents" | "agent" | "documents" | "settings" | "profile" | "admin";
 
 interface UiState {
   view: ViewKey;
