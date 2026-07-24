@@ -81,6 +81,7 @@ export type AdminAccessDto = {
   permissions: AdminPermissionDto[];
   organizations: Array<{ id: string; name: string }>;
   assignments: Array<{ user_id: string; organization_id: string; membership_id: string; active: boolean; role_ids: string[] }>;
+  platform_assignments: Array<{ user_id: string; role_ids: string[] }>;
 };
 
 export type DocumentDto = {

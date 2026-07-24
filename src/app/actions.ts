@@ -190,6 +190,22 @@ export async function changeAdminPasswordAction(userId: string, password: string
   return updateAdminUser(userId, { password }, await authorization());
 }
 
+export async function updateAdminUserAction(userId: string, input: {
+  fullName?: string;
+  password?: string;
+  active?: boolean;
+  superAdmin?: boolean;
+}): Promise<AdminUserDto> {
+  const user = await updateAdminUser(userId, {
+    full_name: input.fullName,
+    password: input.password,
+    active: input.active,
+    super_admin: input.superAdmin,
+  }, await authorization());
+  revalidatePath("/admin");
+  return user;
+}
+
 export async function setAdminUserActiveAction(userId: string, active: boolean): Promise<AdminUserDto> {
   return updateAdminUser(userId, { active }, await authorization());
 }
