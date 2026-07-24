@@ -84,6 +84,18 @@ export type AdminAccessDto = {
   platform_assignments: Array<{ user_id: string; role_ids: string[] }>;
 };
 
+export type AuditEventDto = {
+  id: string;
+  organization_id: string | null;
+  actor_subject: string | null;
+  event_type: string;
+  entity_type: string;
+  entity_id: string | null;
+  label: string;
+  context: string | null;
+  occurred_at: string;
+};
+
 export type DocumentDto = {
   id: string;
   organization_id: string;

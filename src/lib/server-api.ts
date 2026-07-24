@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { AdminAccessDto, AdminRoleDto, AdminUserDto, AgentDto, AiModelDto, CurrentUserDto, DashboardDto, DocumentDto, InitialAppData, NotificationDto, OrchestratorConfigurationDto, OrganizationDto, PaginatedResult, PaginationDto, ServiceStatusDto, SettingsDataDto } from "@/lib/api";
+import type { AdminAccessDto, AdminRoleDto, AdminUserDto, AgentDto, AiModelDto, AuditEventDto, CurrentUserDto, DashboardDto, DocumentDto, InitialAppData, NotificationDto, OrchestratorConfigurationDto, OrganizationDto, PaginatedResult, PaginationDto, ServiceStatusDto, SettingsDataDto } from "@/lib/api";
 import { ApiError } from "@/lib/api";
 
 const API_BASE_URL = (process.env.API_BASE_URL ?? "http://localhost:8080/api/v1").replace(/\/$/, "");
@@ -66,6 +66,21 @@ export async function logout(userAuthorization?: string): Promise<void> {
 
 export async function loadAdminAccess(userAuthorization?: string): Promise<AdminAccessDto> {
   return (await requestBackend<AdminAccessDto>("/admin/access", userAuthorization)).data;
+}
+
+export async function loadAdminAudit(userAuthorization?: string): Promise<AuditEventDto[]> {
+  return (await requestBackend<AuditEventDto[]>("/admin/audit?limit=200", userAuthorization)).data;
+}
+
+export async function loadOrganizationActivity(
+  organizationId: string,
+  filter: { entityType?: string; entityId?: string } = {},
+  userAuthorization?: string,
+): Promise<AuditEventDto[]> {
+  const params = new URLSearchParams({ limit: "100" });
+  if (filter.entityType) params.set("entity_type", filter.entityType);
+  if (filter.entityId) params.set("entity_id", filter.entityId);
+  return (await requestBackend<AuditEventDto[]>(`/organizations/${encodeURIComponent(organizationId)}/activity?${params}`, userAuthorization)).data;
 }
 
 export async function createAdminUser(input: { email: string; full_name: string; password: string; super_admin: boolean }, userAuthorization?: string): Promise<AdminUserDto> {

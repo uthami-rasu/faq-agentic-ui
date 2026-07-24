@@ -2,16 +2,17 @@
 
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertCircle, Bot, Braces, CheckCircle2, Code2, LoaderCircle, Play, Route, Save, Settings, ShieldCheck, Sparkles } from "lucide-react";
+import { Activity, AlertCircle, Bot, Braces, CheckCircle2, Code2, LoaderCircle, Play, Route, Save, Settings, ShieldCheck, Sparkles } from "lucide-react";
 import { configureOrchestratorAction, loadOrchestratorConfigurationAction } from "@/app/actions";
 import type { Agent, Notify } from "../types";
 import { AgentAvatar, PageHeading, Status } from "../shared";
 import { apiErrorMessage } from "../utils";
 import { PlaygroundPage } from "./playground-page";
 import { WidgetsPage } from "./widgets-page";
+import { ActivityTimeline } from "../activity-timeline";
 
 type Props = { organizationId: string; organizationName: string; agents: Agent[]; notify: Notify; onSaved: (active: boolean) => void; canManage: boolean };
-type Section = "configuration" | "playground" | "widget";
+type Section = "configuration" | "playground" | "widget" | "history";
 type FormSnapshot = { assistantName: string; welcome: string; guidance: string; enabled: boolean; agentIds: string[] };
 
 export function OrchestratorPage({ organizationId, organizationName, agents, notify, onSaved, canManage }: Props) {
@@ -73,11 +74,12 @@ export function OrchestratorPage({ organizationId, organizationName, agents, not
     <PageHeading eyebrow="Organization assistant" title="AI Orchestrator" description={`Let visitors ask one assistant and route each question to the right ${organizationName} FAQ agent.`}>
       {section === "configuration" && canManage && <button className="primary-button configuration-save-button" disabled={saveDisabled} onClick={save}>{saving ? <LoaderCircle className="spin" size={16}/> : dirty ? <Save size={16}/> : <CheckCircle2 size={16}/>} {saving ? "Saving…" : configurationQuery.isLoading ? "Loading…" : dirty ? "Save configuration" : "Saved"}</button>}
     </PageHeading>
-    <div className="context-tabs orchestrator-workspace-tabs"><button className={section === "configuration" ? "active" : ""} onClick={() => setSection("configuration")}><Settings size={15}/>Configuration</button><button className={section === "playground" ? "active" : ""} onClick={() => setSection("playground")}><Play size={15}/>Playground</button><button className={section === "widget" ? "active" : ""} onClick={() => setSection("widget")}><Code2 size={15}/>Widget</button></div>
+    <div className="context-tabs orchestrator-workspace-tabs"><button className={section === "configuration" ? "active" : ""} onClick={() => setSection("configuration")}><Settings size={15}/>Configuration</button><button className={section === "playground" ? "active" : ""} onClick={() => setSection("playground")}><Play size={15}/>Playground</button><button className={section === "widget" ? "active" : ""} onClick={() => setSection("widget")}><Code2 size={15}/>Widget</button><button className={section === "history" ? "active" : ""} onClick={() => setSection("history")}><Activity size={15}/>History</button></div>
     {configurationQuery.isError && <div className="orchestrator-load-error"><AlertCircle size={17}/><span>Current settings could not be loaded.</span><button onClick={() => configurationQuery.refetch()}>Try again</button></div>}
     {section === "configuration" && <fieldset className="permission-fieldset" disabled={!canManage}><Configuration assistantName={assistantName} setAssistantName={setAssistantName} enabled={enabled} setEnabled={setEnabled} welcome={welcome} setWelcome={setWelcome} guidance={guidance} setGuidance={setGuidance} agents={agents} selectedIds={selectedIds} toggleAgent={toggleAgent}/></fieldset>}
     {section === "playground" && <><WorkspaceState enabled={enabled} selected={selectedIds.length}/><PlaygroundPage notify={notify} embedded organizationMode organizationName={organizationName} orchestratorName={assistantName}/></>}
     {section === "widget" && <><WorkspaceState enabled={enabled} selected={selectedIds.length}/><WidgetsPage notify={notify} embedded organizationId={organizationId} organizationName={organizationName} orchestratorName={assistantName} welcomeMessage={welcome}/></>}
+    {section === "history" && <ActivityTimeline organizationId={organizationId} entityType="ORCHESTRATOR" title="Orchestrator history"/>}
   </div>;
 }
 

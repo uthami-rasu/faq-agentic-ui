@@ -1,19 +1,21 @@
 "use client";
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { Building2, Check, KeyRound, LoaderCircle, ShieldCheck, UserRound, X } from "lucide-react";
+import { Activity, Building2, Check, KeyRound, LoaderCircle, ShieldCheck, UserRound, X } from "lucide-react";
 import { assignAdminRolesAction, updateAdminUserAction } from "@/app/actions";
-import type { AdminAccessDto, AdminRoleDto, AdminUserDto } from "@/lib/api";
+import type { AdminAccessDto, AdminRoleDto, AdminUserDto, AuditEventDto } from "@/lib/api";
 import { initials } from "./admin-chrome";
 
 type UserEditorProps = {
   user: AdminUserDto;
   data: AdminAccessDto;
+  audit: AuditEventDto[];
   close: () => void;
   refresh: (message: string) => Promise<void>;
 };
 
-export function UserEditor({ user, data, close, refresh }: UserEditorProps) {
+export function UserEditor({ user, data, audit, close, refresh }: UserEditorProps) {
+  const [tab, setTab] = useState<"profile" | "access" | "activity">("access");
   const [fullName, setFullName] = useState(user.full_name);
   const [password, setPassword] = useState("");
   const [active, setActive] = useState(user.active);
@@ -26,6 +28,7 @@ export function UserEditor({ user, data, close, refresh }: UserEditorProps) {
 
   const platformRoles = useMemo(() => data.roles.filter((role) => role.scope === "PLATFORM" && role.active), [data.roles]);
   const organizationRoles = useMemo(() => data.roles.filter((role) => role.scope === "ORGANIZATION" && role.active), [data.roles]);
+  const userActivity = useMemo(() => audit.filter((event) => event.actor_subject === user.subject || (event.entity_type === "USER" && event.entity_id === user.id)), [audit, user.id, user.subject]);
 
   useEffect(() => {
     setPlatformRoleIds(data.platform_assignments?.find((item) => item.user_id === user.id)?.role_ids ?? []);
@@ -35,6 +38,12 @@ export function UserEditor({ user, data, close, refresh }: UserEditorProps) {
     const assignment = data.assignments.find((item) => item.user_id === user.id && item.organization_id === organizationId);
     setOrganizationRoleIds(assignment?.active ? assignment.role_ids : []);
   }, [data.assignments, organizationId, user.id]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape") close(); };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [close]);
 
   const run = async (kind: NonNullable<typeof busy>, work: () => Promise<void>, message: string) => {
     setBusy(kind);
@@ -72,8 +81,14 @@ export function UserEditor({ user, data, close, refresh }: UserEditorProps) {
 
       {error && <div className="governance-form-error" role="alert">{error}</div>}
 
+      <nav className="governance-editor-tabs" aria-label="User details">
+        <button className={tab === "profile" ? "active" : ""} onClick={() => setTab("profile")}><UserRound size={16}/>Identity & login</button>
+        <button className={tab === "access" ? "active" : ""} onClick={() => setTab("access")}><ShieldCheck size={16}/>Roles & organizations</button>
+        <button className={tab === "activity" ? "active" : ""} onClick={() => setTab("activity")}><Activity size={16}/>Activity</button>
+      </nav>
+
       <div className="governance-editor-scroll">
-        <form className="governance-editor-section" onSubmit={saveProfile}>
+        {tab === "profile" && <form className="governance-editor-section" onSubmit={saveProfile}>
           <SectionTitle icon={<UserRound/>} title="Identity and login" detail="Update the user's display name, login password, and account state."/>
           <div className="governance-editor-fields">
             <label>Full name<input value={fullName} onChange={(event) => setFullName(event.target.value)} required maxLength={160}/></label>
@@ -85,9 +100,9 @@ export function UserEditor({ user, data, close, refresh }: UserEditorProps) {
             <label><input type="checkbox" checked={superAdmin} onChange={(event) => setSuperAdmin(event.target.checked)}/><span><b>Super Administrator</b><small>Full Governance Console authority. Product access is still assigned separately.</small></span></label>
           </div>
           <SaveButton busy={busy === "profile"} label="Save identity"/>
-        </form>
+        </form>}
 
-        <section className="governance-editor-section">
+        {tab === "access" && <div><section className="governance-editor-section">
           <SectionTitle icon={<ShieldCheck/>} title="Platform-scoped roles" detail="Capabilities that apply across the SaaS platform, not inside one organization."/>
           <ScopeNote scope="Platform" detail="Use platform roles for global operations such as creating organizations, managing access-control roles, or reading platform audit history. Super Administrator is a separate all-powerful governance flag."/>
           <RolePicker roles={platformRoles} selected={platformRoleIds} setSelected={setPlatformRoleIds}/>
@@ -95,15 +110,25 @@ export function UserEditor({ user, data, close, refresh }: UserEditorProps) {
         </section>
 
         <section className="governance-editor-section">
-          <SectionTitle icon={<Building2/>} title="Organization-scoped roles" detail="Choose an organization, then control what this user can do within it."/>
+          <SectionTitle icon={<Building2/>} title="Organization memberships" detail="This user can belong to multiple organizations with different roles in each."/>
           <ScopeNote scope="Organization" detail="Organization roles are tenant-specific. The same user can be an Editor in one organization, a Viewer in another, and have no access elsewhere."/>
           {data.organizations.length ? <>
-            <label className="governance-organization-select">Organization<select value={organizationId} onChange={(event) => setOrganizationId(event.target.value)}>{data.organizations.map((organization) => <option key={organization.id} value={organization.id}>{organization.name}</option>)}</select></label>
+            <div className="governance-membership-grid">{data.organizations.map((organization) => {
+              const assignment = data.assignments.find((item) => item.user_id === user.id && item.organization_id === organization.id);
+              const assignedRoles = assignment?.active ? assignment.role_ids.map((id) => data.roles.find((role) => role.id === id)?.name).filter(Boolean) : [];
+              return <button type="button" className={organizationId === organization.id ? "selected" : ""} key={organization.id} onClick={() => setOrganizationId(organization.id)}><span><Building2 size={16}/></span><div><b>{organization.name}</b><small>{assignedRoles.length ? assignedRoles.join(" · ") : "No access"}</small></div>{organizationId === organization.id && <Check size={16}/>}</button>;
+            })}</div>
+            <div className="governance-membership-editor"><b>Edit roles for {data.organizations.find((organization) => organization.id === organizationId)?.name}</b><p>Select one or more reusable organization roles.</p></div>
             <RolePicker roles={organizationRoles} selected={organizationRoleIds} setSelected={setOrganizationRoleIds}/>
             <p className="governance-revoke-hint">Save with no roles selected to revoke access to this organization.</p>
             <SaveButton busy={busy === "organization"} label="Save organization access" onClick={() => void run("organization", () => assignAdminRolesAction({ userId: user.id, organizationId, roleIds: organizationRoleIds }), organizationRoleIds.length ? "Organization access updated" : "Organization access revoked")}/>
           </> : <p className="governance-empty-inline">Create an organization before assigning organization access.</p>}
-        </section>
+        </section></div>}
+
+        {tab === "activity" && <section className="governance-editor-section">
+          <SectionTitle icon={<Activity/>} title="User activity" detail="Successful sign-ins and changes performed by this identity."/>
+          <div className="governance-user-activity">{userActivity.map((event) => <article key={event.id}><span><Activity size={15}/></span><div><b>{event.label}</b><p>{event.context}</p><small>{new Date(event.occurred_at).toLocaleString()} · {event.event_type.replaceAll("_", " ")}</small></div></article>)}{userActivity.length === 0 && <p className="governance-empty-inline">No recorded activity for this user yet.</p>}</div>
+        </section>}
       </div>
     </section>
   </div>;

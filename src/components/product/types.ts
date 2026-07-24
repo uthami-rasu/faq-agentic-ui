@@ -29,8 +29,8 @@ export type DashboardBackendData = {
   orchestrator: { active: boolean };
 };
 
-export type OrganizationTab = "overview" | "branding" | "members" | "api" | "danger";
-export type AgentTab = "overview" | "knowledge" | "ai" | "retrieval" | "prompt" | "playground" | "widget";
+export type OrganizationTab = "overview" | "branding" | "members" | "api" | "activity" | "danger";
+export type AgentTab = "overview" | "knowledge" | "ai" | "retrieval" | "prompt" | "playground" | "widget" | "history";
 export type Notify = (message: string) => void;
 
 export const titleMap: Record<ViewKey, string> = {

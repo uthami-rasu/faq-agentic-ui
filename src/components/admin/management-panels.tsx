@@ -1,26 +1,40 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { Info, KeyRound, LoaderCircle, Pencil, Plus, Search, ShieldCheck, UserPlus } from "lucide-react";
+import { Grid2X2, Info, KeyRound, List, LoaderCircle, Pencil, Plus, Search, ShieldCheck, UserPlus } from "lucide-react";
 import { createAdminRoleAction, createAdminUserAction } from "@/app/actions";
-import type { AdminAccessDto, AdminUserDto } from "@/lib/api";
+import type { AdminAccessDto, AdminUserDto, AuditEventDto } from "@/lib/api";
 import { initials } from "./admin-chrome";
 import { UserEditor } from "./user-editor";
 
 type PanelProps = { data: AdminAccessDto; refresh: (message: string) => Promise<void> };
 
-export function UsersPanel({ data, refresh }: PanelProps) {
+export function UsersPanel({ data, audit, refresh }: PanelProps & { audit: AuditEventDto[] }) {
   const [busy, setBusy] = useState(false);
   const [search, setSearch] = useState("");
+  const [layout, setLayout] = useState<"grid" | "list">("grid");
+  const [showCreate, setShowCreate] = useState(false);
   const [selectedUser, setSelectedUser] = useState<AdminUserDto | null>(null);
   const users = data.users.filter((user) => `${user.full_name} ${user.email}`.toLowerCase().includes(search.toLowerCase()));
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault(); setBusy(true); const form = new FormData(event.currentTarget);
-    try { await createAdminUserAction({ email: String(form.get("email")), fullName: String(form.get("fullName")), password: String(form.get("password")), superAdmin: form.get("superAdmin") === "on" }); event.currentTarget.reset(); await refresh("User registered"); } finally { setBusy(false); }
+    try { await createAdminUserAction({ email: String(form.get("email")), fullName: String(form.get("fullName")), password: String(form.get("password")), superAdmin: form.get("superAdmin") === "on" }); event.currentTarget.reset(); setShowCreate(false); await refresh("User registered"); } finally { setBusy(false); }
   };
-  return <div className="governance-management-grid"><form className="governance-panel governance-form" onSubmit={submit}><PanelHeader icon={<UserPlus/>} title="Register user" detail="Create an identity and set its initial access state."/><label>Full name<input name="fullName" required maxLength={160} placeholder="e.g. Asha Patel"/></label><label>Email address<input name="email" type="email" required placeholder="name@company.com"/></label><label>Initial password<input name="password" type="password" minLength={10} required placeholder="Minimum 10 characters"/></label><label className="governance-check"><input name="superAdmin" type="checkbox"/>Grant Super Admin access</label><button className="governance-primary" disabled={busy}>{busy ? <LoaderCircle className="spin"/> : <Plus/>}{busy ? "Registering…" : "Register user"}</button></form>
-    <section className="governance-panel governance-directory"><header><div><h2>User directory</h2><p>{data.users.length} identities registered. Select a user to edit identity, login, and scoped roles.</p></div><label><Search size={17}/><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search users"/></label></header><div className="governance-table"><div className="governance-table-head governance-user-row"><span>User</span><span>Access type</span><span>Status</span><span>Action</span></div>{users.map((user) => { const productAccess = data.assignments.some((assignment) => assignment.user_id === user.id && assignment.active); return <article className="governance-user-row governance-user-row-clickable" key={user.id} onClick={() => setSelectedUser(user)}><button className="governance-user-identity" onClick={() => setSelectedUser(user)}><span>{initials(user.full_name)}</span><div><b>{user.full_name}</b><small>{user.email}</small></div></button><span className={user.super_admin ? "governance-badge privileged" : "governance-badge"}>{user.super_admin ? productAccess ? "Governance + Product" : "Governance only" : productAccess ? "Product user" : "Unassigned"}</span><span className={`governance-status ${user.active ? "active" : "inactive"}`}><i/>{user.active ? "Active" : "Disabled"}</span><div className="governance-row-actions"><button onClick={(event) => { event.stopPropagation(); setSelectedUser(user); }}><Pencil size={13}/>Edit user</button></div></article>; })}{users.length === 0 && <p className="governance-empty-row">No users match your search.</p>}</div></section>
-    {selectedUser && <UserEditor user={data.users.find((user) => user.id === selectedUser.id) ?? selectedUser} data={data} close={() => setSelectedUser(null)} refresh={refresh}/>}
+  return <div className="governance-user-page">
+    <section className="governance-panel governance-user-browser">
+      <header><div><h2>People and access</h2><p>{data.users.length} identities · Select a person to review every role and organization.</p></div><div className="governance-user-tools"><label><Search size={17}/><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search people"/></label><span><button className={layout === "grid" ? "active" : ""} aria-label="Grid view" onClick={() => setLayout("grid")}><Grid2X2 size={16}/></button><button className={layout === "list" ? "active" : ""} aria-label="List view" onClick={() => setLayout("list")}><List size={17}/></button></span><button className="governance-primary" onClick={() => setShowCreate((current) => !current)}><UserPlus size={16}/>{showCreate ? "Close" : "New user"}</button></div></header>
+      {showCreate && <form className="governance-create-user-strip" onSubmit={submit}><label>Full name<input name="fullName" required maxLength={160} placeholder="Asha Patel"/></label><label>Email address<input name="email" type="email" required placeholder="name@company.com"/></label><label>Initial password<input name="password" type="password" minLength={10} required placeholder="Minimum 10 characters"/></label><label className="governance-check"><input name="superAdmin" type="checkbox"/>Super Admin</label><button className="governance-primary" disabled={busy}>{busy ? <LoaderCircle className="spin"/> : <Plus/>}{busy ? "Creating…" : "Create"}</button></form>}
+      <div className={`governance-user-cards ${layout}`}>{users.map((user) => {
+        const memberships = data.assignments.filter((assignment) => assignment.user_id === user.id && assignment.active);
+        const platformRoleIds = data.platform_assignments?.find((item) => item.user_id === user.id)?.role_ids ?? [];
+        const lastLogin = audit.find((event) => event.event_type === "USER_LOGIN" && event.entity_id === user.id);
+        return <button className="governance-user-card" key={user.id} onClick={() => setSelectedUser(user)}>
+          <span className="governance-card-avatar">{initials(user.full_name)}</span><div className="governance-card-person"><span><b>{user.full_name}</b>{user.super_admin && <em><ShieldCheck size={12}/>Super Admin</em>}</span><small>{user.email}</small></div><span className={`governance-status ${user.active ? "active" : "inactive"}`}><i/>{user.active ? "Active" : "Disabled"}</span>
+          <div className="governance-card-access"><span><b>{memberships.length}</b><small>Organizations</small></span><span><b>{platformRoleIds.length}</b><small>Platform roles</small></span><span><b>{lastLogin ? new Date(lastLogin.occurred_at).toLocaleDateString() : "Never"}</b><small>Last login</small></span></div><span className="governance-card-edit"><Pencil size={14}/>Open user</span>
+        </button>;
+      })}{users.length === 0 && <p className="governance-empty-row">No users match your search.</p>}</div>
+    </section>
+    {selectedUser && <UserEditor user={data.users.find((user) => user.id === selectedUser.id) ?? selectedUser} data={data} audit={audit} close={() => setSelectedUser(null)} refresh={refresh}/>}
   </div>;
 }
 

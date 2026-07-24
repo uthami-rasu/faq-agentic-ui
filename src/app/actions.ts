@@ -2,7 +2,7 @@
 
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
-import type { AdminAccessDto, AdminUserDto, AgentDto, DashboardDto, DocumentDto, NotificationDto, OrchestratorConfigurationDto, OrganizationDto, PaginatedResult, SettingsDataDto } from "@/lib/api";
+import type { AdminAccessDto, AdminUserDto, AgentDto, AuditEventDto, DashboardDto, DocumentDto, NotificationDto, OrchestratorConfigurationDto, OrganizationDto, PaginatedResult, SettingsDataDto } from "@/lib/api";
 import {
   createAgent,
   createOrganization,
@@ -22,6 +22,8 @@ import {
   updateOrganization,
   uploadDocuments,
   loadAdminAccess,
+  loadAdminAudit,
+  loadOrganizationActivity,
   createAdminUser,
   updateAdminUser,
   createAdminRole,
@@ -180,6 +182,10 @@ export async function deleteAgentAction(organizationId: string, agentId: string)
 }
 
 export async function loadAdminAccessAction(): Promise<AdminAccessDto> { return loadAdminAccess(await authorization()); }
+export async function loadAdminAuditAction(): Promise<AuditEventDto[]> { return loadAdminAudit(await authorization()); }
+export async function loadOrganizationActivityAction(input: { organizationId: string; entityType?: string; entityId?: string }): Promise<AuditEventDto[]> {
+  return loadOrganizationActivity(input.organizationId, { entityType: input.entityType, entityId: input.entityId }, await authorization());
+}
 
 export async function createAdminUserAction(input: { email: string; fullName: string; password: string; superAdmin: boolean }): Promise<AdminUserDto> {
   const user = await createAdminUser({ email: input.email, full_name: input.fullName, password: input.password, super_admin: input.superAdmin }, await authorization());

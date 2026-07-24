@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowUpRight, BookOpenCheck, ChevronRight, KeyRound, LayoutDashboard, LogOut, Menu, Moon, MoreHorizontal, Settings, ShieldCheck, Sparkles, Sun, Users, X } from "lucide-react";
+import { Activity, ArrowUpRight, BookOpenCheck, ChevronRight, CircleHelp, KeyRound, LayoutDashboard, LogOut, Menu, Moon, MoreHorizontal, Settings, ShieldCheck, Sparkles, Sun, Users, X } from "lucide-react";
 import { logoutAction } from "@/app/auth-actions";
 import type { CurrentUserDto } from "@/lib/api";
 import { setTheme, useAppDispatch } from "@/store";
@@ -13,6 +13,8 @@ const primaryNavigation: Array<{ view: AdminView; label: string; icon: typeof Us
   { view: "roles", label: "Roles", icon: KeyRound },
   { view: "governance", label: "Access governance", icon: ShieldCheck },
   { view: "catalog", label: "Permission catalog", icon: BookOpenCheck },
+  { view: "audit", label: "Audit & activity", icon: Activity },
+  { view: "help", label: "Scope guide", icon: CircleHelp },
 ];
 
 type SidebarProps = { open: boolean; view: AdminView; currentUser: CurrentUserDto; changeView: (view: AdminView) => void; close: () => void };

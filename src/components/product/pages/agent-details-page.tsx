@@ -9,13 +9,14 @@ import { KnowledgePage } from "./knowledge-page";
 import { PlaygroundPage } from "./playground-page";
 import { WidgetsPage } from "./widgets-page";
 import { AgentAIConfiguration } from "./agent-ai-configuration";
+import { ActivityTimeline } from "../activity-timeline";
 
 type Props = { agent: Agent; tab: AgentTab; setTab: (tab: AgentTab) => void; models: AiModelDto[]; modelCatalogAvailable: boolean; initialDocuments?: PaginatedResult<DocumentDto>; notify: Notify; updateAgent: (updates: Partial<Agent>) => void; duplicateAgent: () => void; deleteAgent: () => void; onBack: () => void; canEdit: boolean; canCreate: boolean; canDelete: boolean; canAssign: boolean; canUpload: boolean };
 
 export function AgentDetailsPage({ agent, tab, setTab, models, modelCatalogAvailable, initialDocuments, notify, updateAgent, duplicateAgent, deleteAgent, onBack, canEdit, canCreate, canDelete, canAssign, canUpload }: Props) {
   const tabs: { key: AgentTab; label: string }[] = [
     { key: "overview", label: "Overview" }, { key: "knowledge", label: "Knowledge" }, { key: "ai", label: "AI Configuration" },
-    { key: "retrieval", label: "Retrieval" }, { key: "prompt", label: "Prompt" }, { key: "playground", label: "Playground" }, { key: "widget", label: "Widget" },
+    { key: "retrieval", label: "Retrieval" }, { key: "prompt", label: "Prompt" }, { key: "playground", label: "Playground" }, { key: "widget", label: "Widget" }, { key: "history", label: "History" },
   ];
   const [prompt, setPrompt] = useState("You are a friendly and accurate customer support specialist for Acme. Answer using only the supplied knowledge. If the answer is unavailable, say so clearly and offer to connect the user with a human.");
   const [draftName, setDraftName] = useState(agent.name);
@@ -31,6 +32,7 @@ export function AgentDetailsPage({ agent, tab, setTab, models, modelCatalogAvail
     {tab === "prompt" && <section className="panel prompt-panel"><div className="panel-title"><div><h2>System prompt</h2><p>Set the role, boundaries, and response style for {agent.name}.</p></div>{canEdit && <button className="secondary-button" onClick={() => setPrompt("You are a helpful FAQ agent. Answer only from the provided knowledge.")}><RotateCcw size={14}/> Reset default</button>}</div><label className="field"><span>Instructions</span><textarea rows={13} value={prompt} disabled={!canEdit} onChange={(event) => setPrompt(event.target.value)}/><small>{prompt.length} / 4,000 characters</small></label><div className="prompt-guidance"><Sparkles size={17}/><div><b>Prompt guidance</b><p>Describe the agent&apos;s role, tone, limitations, and what it should do when the knowledge does not contain an answer.</p></div></div>{canEdit && <div className="form-actions"><button className="primary-button" onClick={() => notify("System prompt saved")}><Save size={15}/> Save prompt</button></div>}</section>}
     {tab === "playground" && <PlaygroundPage notify={notify} embedded agentName={agent.name}/>}
     {tab === "widget" && <WidgetsPage notify={notify} embedded agentMode agentName={agent.name} agentId={agent.id}/>}
+    {tab === "history" && <ActivityTimeline organizationId={agent.organizationId} entityType="AGENT" entityId={agent.id} title={`${agent.name} history`}/>}
   </div>;
 }
 

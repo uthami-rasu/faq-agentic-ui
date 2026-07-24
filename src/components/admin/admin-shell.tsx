@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { Check, LoaderCircle, ShieldAlert } from "lucide-react";
-import { loadAdminAccessAction } from "@/app/actions";
+import { loadAdminAccessAction, loadAdminAuditAction } from "@/app/actions";
 import type { CurrentUserDto } from "@/lib/api";
 import { setTheme, useAppDispatch, useAppSelector } from "@/store";
 import { AdminSidebar, AdminTopbar } from "./admin-chrome";
@@ -20,6 +20,7 @@ export function AdminShell({ currentUser, initialView = "overview" }: { currentU
   const [mobileOpen, setMobileOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const query = useQuery({ queryKey: ["admin-access"], queryFn: loadAdminAccessAction, staleTime: 10_000 });
+  const auditQuery = useQuery({ queryKey: ["admin-audit"], queryFn: loadAdminAuditAction, staleTime: 10_000 });
 
   useEffect(() => {
     const saved = (localStorage.getItem("arffy-ai-theme") ?? "light") as "light" | "dark";
@@ -48,7 +49,7 @@ export function AdminShell({ currentUser, initialView = "overview" }: { currentU
       <div className="governance-content">
         {query.isLoading && <AdminLoadState icon={<LoaderCircle className="spin"/>} title="Loading governance data" detail="Reading users, roles, permissions, and access mappings…"/>}
         {query.isError && <AdminLoadState icon={<ShieldAlert/>} title="Governance data unavailable" detail="Your session may have expired, or the access service is unavailable." retry={() => query.refetch()}/>} 
-        {query.data && <AnimatePresence mode="wait"><motion.div key={view} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: .18 }}><AdminWorkspace view={view} data={query.data} currentUser={currentUser} changeView={changeView} refresh={async (message) => { await query.refetch(); router.refresh(); notify(message); }}/></motion.div></AnimatePresence>}
+        {query.data && <AnimatePresence mode="wait"><motion.div key={view} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: .18 }}><AdminWorkspace view={view} data={query.data} audit={auditQuery.data ?? []} currentUser={currentUser} changeView={changeView} refresh={async (message) => { await Promise.all([query.refetch(), auditQuery.refetch()]); router.refresh(); notify(message); }}/></motion.div></AnimatePresence>}
       </div>
     </main>
     <AnimatePresence>{toast && <motion.div className="toast governance-toast" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}><span><Check size={16}/></span>{toast}</motion.div>}</AnimatePresence>
